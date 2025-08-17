@@ -2,7 +2,7 @@ import os
 from email.message import Message
 from enum import Enum
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING, Any, Literal
+from typing import IO, TYPE_CHECKING, Literal
 
 from ..utils import HTTPException
 
@@ -25,34 +25,36 @@ class MultipartParser:
     """Parser for HTTP multipart/form-data requests.
 
     This class parses multipart form data from HTTP requests, handling both
-    form fields and file uploads. It supports streaming large file uploads
-    to temporary files and correctly handles various boundary delimiters.
+    form fields and file uploads. It is designed to be used as a context manager
+    to ensure proper cleanup of temporary files used for uploads.
 
     Example:
-        environ = {
-            "CONTENT_TYPE": "multipart/form-data; boundary=----WebKitFormBoundary",
-            "CONTENT_LENGTH": "1024",
-            "wsgi.input": io.BytesIO(form_data)
-        }
+        # Assuming stream, content_type, and content_length are available
+        parser = MultipartParser(stream, content_type, content_length)
+        with parser:
+            forms, files = parser.parse()
 
-        parser = MultipartParser(environ)
-        forms, files = parser.parse()
+            # Access form fields
+            username = forms.get("username")
 
-        # Access form fields
-        username = forms["username"][0]
-
-        # Access uploaded files
-        avatar_file = files["avatar"][0]
-        file_path = avatar_file["tempfile"]
+            # Access uploaded files
+            upload = files.get("avatar")
+            if upload:
+                # The file object is a temporary file that will be deleted
+                # automatically when the 'with' block is exited.
+                content = upload["file"].read()
 
     Attributes:
         forms (dict): Dictionary of parsed form fields.
-        files (dict): Dictionary of parsed file uploads.
+        files (dict): Dictionary of parsed file uploads. Each file is a dict
+                      containing 'filename', 'content_type', and 'file' object.
     """
 
     def __init__(
         self,
-        environ: dict[str, Any],
+        stream: IO[bytes],
+        content_type: str,
+        content_length: int,
         *,
         max_body_size: int = 2 * 1024 * 1024,
         chunk_size: int = 4096,
@@ -62,24 +64,43 @@ class MultipartParser:
         """Initialize the MultipartParser.
 
         Args:
-            environ: WSGI environment dictionary.
+            stream: The input stream containing the request body.
+            content_type: The Content-Type header value.
+            content_length: The Content-Length of the request body.
             max_body_size: Maximum allowed request body size in bytes (default: 2MB).
             chunk_size: Size of chunks to read at a time (default: 4KB).
             encoding: Text encoding for form data (default: "utf-8").
             encoding_errors: How to handle encoding errors (default: "strict").
         """
-        self._environ = environ
-        self._cfield: dict[str, str] = {}
-        self._ccontent = b""
-        self._cstream: None | _TemporaryFileWrapper[bytes] = None
+        if content_length > max_body_size:
+            raise HTTPException(
+                f"Content-Length {content_length} exceeds max body size of {max_body_size}.",
+                status_code=413,
+            )
+
+        self._stream = stream
+        self._content_type = content_type
+        self._content_length = content_length
         self._max_body_size = max_body_size
         self._chunk_size = chunk_size
         self._encoding = encoding
         self._encoding_errors = encoding_errors
+
+        self._cfield: dict[str, str] = {}
+        self._ccontent = b""
+        self._cstream: None | _TemporaryFileWrapper[bytes] = None
         self._delimiter: DelimiterEnum = DelimiterEnum.UNDEF
+        self._total_read = 0
+        self._temp_files: list[_TemporaryFileWrapper] = []
 
         self.forms: FormFields = {}
         self.files: FileFields = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cleanup()
 
     @property
     def boundary(self) -> str:
@@ -91,9 +112,8 @@ class MultipartParser:
         Raises:
             HTTPException: If boundary is missing from Content-Type header.
         """
-        ctype = self._environ.get("CONTENT_TYPE", "")
         message = Message()
-        message["Content-Type"] = ctype
+        message["Content-Type"] = self._content_type
         boundary = message.get_param("boundary")
 
         if not boundary:
@@ -115,7 +135,7 @@ class MultipartParser:
         Returns:
             int: Content length, or -1 if not specified.
         """
-        return int(self._environ.get("CONTENT_LENGTH", -1))
+        return self._content_length
 
     def parse(self):
         """Parse the multipart request data.
@@ -125,7 +145,6 @@ class MultipartParser:
 
         Raises:
             HTTPException: For various parsing errors.
-            Exception: For other parsing failures.
         """
         try:
             self._parse()
@@ -165,12 +184,13 @@ class MultipartParser:
         This method closes any open temporary file streams and removes
         temporary files from disk. It also resets all internal state.
         """
-        if self._cstream is not None:
-            if not self._cstream.closed:
-                self._cstream.close()
-            if os.path.exists(self._cstream.name):
-                os.remove(self._cstream.name)
+        for f in self._temp_files:
+            if not f.closed:
+                f.close()
+            if os.path.exists(f.name):
+                os.remove(f.name)
 
+        self._temp_files = []
         self._cfield = {}
         self._ccontent = b""
         self._cstream = None
@@ -183,7 +203,9 @@ class MultipartParser:
         Returns:
             NamedTemporaryFile: A temporary file object.
         """
-        return NamedTemporaryFile(prefix="webspark-", suffix=".tmp", delete=False)
+        f = NamedTemporaryFile(prefix="webspark-", suffix=".tmp", delete=False)
+        self._temp_files.append(f)
+        return f
 
     def _on_body_end(self):
         """Handle the end of a form field body parsing.
@@ -209,12 +231,12 @@ class MultipartParser:
         """Handle the end of a file body parsing.
 
         This method is called when a file upload's content has been fully parsed.
-        It closes the temporary file and adds file information to the files dictionary.
+        It rewinds the temporary file and adds file information to the files dictionary.
         """
         if self._cstream is None:
             return
 
-        self._cstream.close()
+        self._cstream.seek(0)
 
         name = self._cfield["name"]
         filename = self._cfield["filename"]
@@ -222,7 +244,7 @@ class MultipartParser:
 
         field = {
             "filename": filename,
-            "tempfile": self._cstream.name,
+            "file": self._cstream,
             "content_type": ctype,
         }
 
@@ -277,11 +299,14 @@ class MultipartParser:
     def _parse(self):
         boundary = f"--{self.boundary}".encode()
         blength = len(boundary)
-        read = self._environ["wsgi.input"].read
+        read = self._stream.read
         chunk_size = self._chunk_size
         remaining = self.content_length
 
         buffer: bytes = read(min(chunk_size, remaining))
+        self._total_read += len(buffer)
+        if self._total_read > self._max_body_size:
+            raise HTTPException("Request entity too large", status_code=413)
         remaining -= len(buffer)
 
         try:
@@ -315,6 +340,9 @@ class MultipartParser:
                 chunk = read(min(chunk_size, remaining))
                 if not chunk:
                     break
+                self._total_read += len(chunk)
+                if self._total_read > self._max_body_size:
+                    raise HTTPException("Request entity too large", status_code=413)
                 remaining -= len(chunk)
                 buffer += chunk
                 header_end_idx = buffer.find(delimiter_double)
@@ -358,6 +386,9 @@ class MultipartParser:
                 chunk = read(min(chunk_size, remaining))
                 if not chunk:
                     break
+                self._total_read += len(chunk)
+                if self._total_read > self._max_body_size:
+                    raise HTTPException("Request entity too large", status_code=413)
                 remaining -= len(chunk)
                 buffer += chunk
                 next_boundary_idx = buffer.find(boundary)

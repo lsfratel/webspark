@@ -37,8 +37,13 @@ class Request:
 
             # Access uploaded files
             if "avatar" in request.files:
-                file_info = request.files["avatar"][0]
-                file_path = file_info["tempfile"]
+                # request.files['avatar'] is a dict for a single file, or a list of dicts for multiple files.
+                upload = request.files["avatar"]
+                if isinstance(upload, list):
+                    upload = upload[0]  # Taking the first file
+
+                # The 'file' key holds a file-like object for the upload.
+                file_content = upload["file"].read()
 
             return JsonResponse({"received": data})
 
@@ -53,7 +58,6 @@ class Request:
         charset (str): Character set from Content-Type header.
         cookies (dict): Parsed cookies.
         body (dict): Parsed request body.
-        forms (dict): Parsed form data (for multipart requests).
         files (dict): Parsed file uploads (for multipart requests).
     """
 
@@ -66,6 +70,12 @@ class Request:
         self.ENV = environ
         self._forms: dict[str, Any] | None = None
         self._files: dict[str, Any] | None = None
+        self._body: dict[str, Any] | None = None
+        self._multipart_parser: MultipartParser | None = None
+
+    def __del__(self):
+        if self._multipart_parser:
+            self._multipart_parser._cleanup()
 
     def _parse_multipart(self):
         """Parse multipart form data if not already parsed.
@@ -73,39 +83,21 @@ class Request:
         This method initializes the multipart parser and parses form data
         and file uploads, storing the results in _forms and _files attributes.
         """
-        if self._forms is None or self._files is None:
-            parser = MultipartParser(
-                self.ENV,
-                max_body_size=_MAX_CONTENT_LENGTH,
-                encoding=self.charset,
-            )
-            forms, files = parser.parse()
-            self._forms = forms
-            self._files = files
+        if self._forms is not None:
+            return
 
-    @property
-    def files(self) -> dict[str, Any]:
-        """Get parsed file uploads from multipart requests.
+        stream = self.ENV.get("wsgi.input", io.BytesIO())
+        content_type = self.headers.get("content-type", "")
 
-        Returns:
-            dict: Dictionary of uploaded files, or empty dict if not multipart.
-        """
-        if self.content_type == "multipart/form-data":
-            self._parse_multipart()
-            return self._files or {}
-        return {}
+        self._multipart_parser = MultipartParser(
+            stream=stream,
+            content_type=content_type,
+            content_length=self.content_length,
+            max_body_size=_MAX_CONTENT_LENGTH,
+            encoding=self.charset,
+        )
 
-    @property
-    def forms(self) -> dict[str, Any]:
-        """Get parsed form data from multipart requests.
-
-        Returns:
-            dict: Dictionary of form fields, or empty dict if not multipart.
-        """
-        if self.content_type == "multipart/form-data":
-            self._parse_multipart()
-            return self._forms or {}
-        return {}
+        self._forms, self._files = self._multipart_parser.parse()
 
     @property
     def view_instance(self) -> View:
@@ -125,7 +117,6 @@ class Request:
         """
         return self.ENV["webspark.instance"]
 
-
     @property
     def body(self) -> dict[str, Any]:
         """Get the parsed request body.
@@ -137,6 +128,9 @@ class Request:
             HTTPException: If the method doesn't allow a body, if the body is too large,
                           if Content-Type is missing, or if the body format is invalid.
         """
+        if self._body is not None:
+            return self._body
+
         if self.method not in BODY_METHODS:
             raise HTTPException(
                 f"Body is only allowed for {', '.join(BODY_METHODS)} methods.",
@@ -160,21 +154,23 @@ class Request:
             )
 
         if content_type == "multipart/form-data":
-            return self.forms
+            self._parse_multipart()
+            self._body = self._forms
+            return self._body or {}
 
         stream = self.ENV.get("wsgi.input", io.BytesIO())
         raw_body = stream.read(content_length or 0)
 
         try:
             if content_type == "application/x-www-form-urlencoded":
-                return {
+                self._body = {
                     k: v[0] if len(v) == 1 else v
                     for k, v in parse_qs(
                         raw_body.decode("utf-8"), keep_blank_values=True
                     ).items()
                 }
             elif content_type == "application/json":
-                return (
+                self._body = (
                     deserialize_json(raw_body.decode("utf-8"))
                     if raw_body.strip()
                     else {}
@@ -184,6 +180,18 @@ class Request:
                 f"Invalid request body format: {e}", status_code=400
             ) from e
 
+        return self._body or {}
+
+    @property
+    def files(self) -> dict[str, Any]:
+        """Get parsed file uploads from multipart requests.
+
+        Returns:
+            dict: Dictionary of uploaded files, or empty dict if not multipart.
+        """
+        if self.content_type == "multipart/form-data":
+            self._parse_multipart()
+            return self._files or {}
         return {}
 
     @property

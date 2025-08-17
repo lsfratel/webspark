@@ -1,5 +1,5 @@
 import io
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -154,7 +154,6 @@ def test_request_body_multipart():
     }
     request = Request(environ)
     assert request.body == {"a": "1"}
-    assert request.forms == {"a": "1"}
     assert request.files == {}
 
 
@@ -175,18 +174,13 @@ def test_request_files_multipart():
     request = Request(environ)
     assert request.files["file"]["filename"] == "test.txt"
     assert request.files["file"]["content_type"] == "text/plain"
+    assert request.files["file"]["file"].read() == b"test content"
 
 
 def test_request_files_not_multipart():
     environ = {"CONTENT_TYPE": "application/json"}
     request = Request(environ)
     assert request.files == {}
-
-
-def test_request_forms_not_multipart():
-    environ = {"CONTENT_TYPE": "application/json"}
-    request = Request(environ)
-    assert request.forms == {}
 
 
 def test_request_body_method_not_allowed():
@@ -253,3 +247,24 @@ def test_request_webspark_instance():
     environ = {"webspark.instance": webspark_instance}
     request = Request(environ)
     assert request.webspark == webspark_instance
+
+
+@patch("webspark.http.request.MultipartParser._cleanup")
+def test_request_del(mock_cleanup):
+    body = (
+        b"--boundary\r\n"
+        b'Content-Disposition: form-data; name="file"; filename="test.txt"\r\n'
+        b"Content-Type: text/plain\r\n\r\n"
+        b"test content\r\n"
+        b"--boundary--\r\n"
+    )
+    environ = {
+        "REQUEST_METHOD": "POST",
+        "CONTENT_TYPE": "multipart/form-data; boundary=boundary",
+        "CONTENT_LENGTH": str(len(body)),
+        "wsgi.input": io.BytesIO(body),
+    }
+    request = Request(environ)
+    _ = request.files  # Access files to trigger parsing
+    del request
+    mock_cleanup.assert_called_once()
