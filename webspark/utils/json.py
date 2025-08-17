@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 
@@ -18,11 +19,11 @@ class JSONHandler:
         self._serializer_func = None
         self._deserializer_func = None
 
-    def _get_serializer(self) -> Callable[[Any], bytes]:
+    def _get_serializer(self) -> Callable[[Any], Any]:
         """Get the fastest available JSON serializer function.
 
         Returns:
-            A function that serializes Python objects to JSON bytes.
+            A function that serializes Python objects to JSON bytes or string.
             The function tries libraries in order: orjson -> ujson -> json
         """
         if self._serializer_func is not None:
@@ -31,10 +32,7 @@ class JSONHandler:
         try:
             import orjson
 
-            def serialize(obj: Any) -> bytes:
-                return orjson.dumps(obj)
-
-            self._serializer_func = serialize
+            self._serializer_func = orjson.dumps
             return self._serializer_func
         except ImportError:
             pass
@@ -42,20 +40,14 @@ class JSONHandler:
         try:
             import ujson
 
-            def serialize(obj: Any) -> bytes:
-                return ujson.dumps(obj).encode("utf-8")
-
-            self._serializer_func = serialize
+            self._serializer_func = ujson.dumps
             return self._serializer_func
         except ImportError:
             pass
 
         import json
 
-        def serialize(obj: Any) -> bytes:
-            return json.dumps(obj, separators=(",", ":")).encode("utf-8")
-
-        self._serializer_func = serialize
+        self._serializer_func = partial(json.dumps, separators=(",", ":"))
         return self._serializer_func
 
     def _get_deserializer(self) -> Callable[[bytes | str], Any]:
@@ -71,10 +63,7 @@ class JSONHandler:
         try:
             import orjson
 
-            def deserialize(data: bytes | str) -> Any:
-                return orjson.loads(data)
-
-            self._deserializer_func = deserialize
+            self._deserializer_func = orjson.loads
             return self._deserializer_func
         except ImportError:
             pass
@@ -82,20 +71,14 @@ class JSONHandler:
         try:
             import ujson
 
-            def deserialize(data: bytes | str) -> Any:
-                return ujson.loads(data)
-
-            self._deserializer_func = deserialize
+            self._deserializer_func = ujson.loads
             return self._deserializer_func
         except ImportError:
             pass
 
         import json
 
-        def deserialize(data: bytes | str) -> Any:
-            return json.loads(data)
-
-        self._deserializer_func = deserialize
+        self._deserializer_func = json.loads
         return self._deserializer_func
 
 
@@ -121,7 +104,10 @@ def serialize_json(obj: Any) -> bytes:
     """
     try:
         serializer = _json_handler._get_serializer()
-        return serializer(obj)
+        serialized = serializer(obj)
+        if isinstance(serialized, str):
+            return serialized.encode("utf-8")
+        return serialized
     except (TypeError, ValueError):
         import json
 
@@ -151,12 +137,5 @@ def deserialize_json(data: bytes | str) -> Any:
         data = deserialize_json(json_string)
         print(data)  # {"name": "John", "age": 30}
     """
-    try:
-        deserializer = _json_handler._get_deserializer()
-        return deserializer(data)
-    except (TypeError, ValueError):
-        import json
-
-        if isinstance(data, bytes):
-            data = data.decode("utf-8")
-        return json.loads(data)
+    deserializer = _json_handler._get_deserializer()
+    return deserializer(data)

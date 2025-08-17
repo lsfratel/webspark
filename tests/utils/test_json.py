@@ -1,4 +1,5 @@
 import sys
+from functools import partial
 
 import pytest
 
@@ -93,7 +94,8 @@ def test_json_handler_json(monkeypatch):
 
     handler = JSONHandler()
     serializer = handler._get_serializer()
-    assert "json" in serializer.__module__
+    assert isinstance(serializer, partial)
+    assert "json" in serializer.func.__module__
 
     deserializer = handler._get_deserializer()
     assert "json" in deserializer.__module__
