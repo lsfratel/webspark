@@ -1,0 +1,6 @@
+[run]
+source = webspark
+omit =
+  */__main__.py
+  */tests/*
+  */testing/*
