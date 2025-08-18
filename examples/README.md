@@ -31,6 +31,16 @@ This directory contains several self-contained examples demonstrating different 
    - Allowed hosts security feature
    - Environment variable usage
 
+6. **[file_upload_example.py](file_upload_example.py)** - Handling file uploads
+   - Handling multipart form data
+   - Saving uploaded files
+   - Returning file information
+
+7. **[database_example.py](database_example.py)** - Database integration
+   - Using SQLite with direct connections
+   - CRUD operations with database models
+   - Error handling for database operations
+
 ## Running the Examples
 
 To run any of these examples, use a WSGI server like Gunicorn:
@@ -45,6 +55,8 @@ gunicorn examples.schema_example:app
 gunicorn examples.plugins_example:app
 gunicorn examples.cookies_example:app
 gunicorn examples.config_example:app
+gunicorn examples.file_upload_example:app
+gunicorn examples.database_example:app
 ```
 
 Or with PDM (if developing locally):
@@ -58,14 +70,3 @@ pdm run gunicorn examples.basic_api:app
 ```
 
 Each example will run on `http://127.0.0.1:8000` by default.
-
-## API Endpoints
-
-Each example implements different endpoints. Check the source code of each file to see the specific routes and functionality.
-
-For the basic API example:
-- `GET /items` - List all items
-- `POST /items` - Create a new item
-- `GET /items/:id` - Get a specific item
-- `PUT /items/:id` - Update a specific item
-- `DELETE /items/:id` - Delete a specific item
