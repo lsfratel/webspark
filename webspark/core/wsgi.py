@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 from ..constants import ERROR_CONVENTIONS
 from ..http.request import Request
 from ..http.response import JsonResponse, Response
+from ..utils import HTTPException
 from .router import Router
 
 
@@ -138,8 +139,10 @@ class WebSpark:
         Returns:
             Iterable: Response body iterable for WSGI server.
         """
+        request = self.creat_request(env)
         try:
-            response = self.dispatch_request(env)
+            self._check_allowed_hosts(request)
+            response = self.dispatch_request(request)
         except Exception as exc:
             if self.debug:
                 env["wsgi.errors"].write(traceback.format_exc())
@@ -147,12 +150,55 @@ class WebSpark:
             exc_handler = self._exceptions.get(
                 getattr(exc, "status_code", 500), self.default_exception_handler
             )
-            response = exc_handler(self.creat_request(env), exc)
+            response = exc_handler(request, exc)
 
         status_str, headers, body_iter = response.as_wsgi()
 
         start_response(status_str, headers)
         return body_iter
+
+    def _check_allowed_hosts(self, request: Request):
+        """Check if the request host is allowed based on configuration.
+
+        Validates the incoming request's host header against the configured
+        ALLOWED_HOSTS setting. Supports exact matches and subdomain patterns.
+
+        Args:
+            request (Request): The incoming HTTP request object containing
+                             the host header to validate.
+
+        Raises:
+            HTTPException: If the host header is missing, invalid, or not
+                          in the allowed hosts list (status code 400).
+
+        Note:
+            - If ALLOWED_HOSTS is None, defaults to ["*"] in debug mode
+              or empty list in production mode.
+            - "*" allows all hosts.
+            - Patterns starting with "." match subdomains (e.g., ".example.com"
+              matches "sub.example.com" and "example.com").
+        """
+        allowed_hosts = getattr(self.config, "ALLOWED_HOSTS", None)
+
+        if allowed_hosts is None:
+            allowed_hosts = ["*"] if self.debug else []
+
+        host = request.host.split(":")[0] if request.host else ""
+
+        if not host:
+            raise HTTPException("Invalid or missing host header.", status_code=400)
+
+        if "*" in allowed_hosts:
+            return
+
+        for pattern in allowed_hosts:
+            if pattern.startswith("."):
+                if host.endswith(pattern) or host == pattern[1:]:
+                    return
+            elif host == pattern:
+                return
+
+        raise HTTPException(f"Host '{host}' not allowed.", status_code=400)
 
     def default_exception_handler(self, _: Request, exc: Exception):
         """Default exception handler for unhandled exceptions.
@@ -192,7 +238,7 @@ class WebSpark:
             status=status_code,
         )
 
-    def dispatch_request(self, env: dict):
+    def dispatch_request(self, request: Request):
         """Dispatch a request to the appropriate route handler.
 
         This method performs URL routing, creates a Request object, and calls
@@ -200,7 +246,7 @@ class WebSpark:
         returns a valid Response object.
 
         Args:
-            env: WSGI environment dictionary.
+            request: The request object.
 
         Returns:
             Response: Response object from the view handler.
@@ -208,12 +254,11 @@ class WebSpark:
         Raises:
             HTTPException: If no route matches or handler returns invalid response.
         """
-        http_method = env.get("REQUEST_METHOD", "GET").lower()
-        path_info = env.get("PATH_INFO", "/")
+        http_method = request.method
+        path_info = request.path
 
         params, route = self._router.match(http_method, path_info)
 
-        request = self.creat_request(env)
         request.path_params = params
 
         resp = route(request)

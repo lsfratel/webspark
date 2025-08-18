@@ -287,7 +287,27 @@ The framework checks for the following headers when `TRUST_PROXY` is enabled:
 -   `X-Forwarded-Proto` for the request scheme (`http` or `https`).
 -   `X-Forwarded-Host` for the original host.
 
-### 9. Environment Variable Helper
+### 9. Allowed Hosts
+
+To prevent HTTP Host header attacks, WebSpark checks the request's `Host` header against a list of allowed hostnames. This is configured via the `ALLOWED_HOSTS` setting on the configuration object.
+
+```python
+class AppConfig:
+    # Allow requests only to "mydomain.com" and any subdomain of "api.mydomain.com"
+    ALLOWED_HOSTS = ["mydomain.com", ".api.mydomain.com"]
+
+app = WebSpark(config=AppConfig())
+```
+
+-   **Behavior**:
+    -   If `debug=True`, `ALLOWED_HOSTS` defaults to `["*"]` (allowing all hosts).
+    -   If `debug=False` and `ALLOWED_HOSTS` is not set, all requests will be rejected with a `400 Bad Request` error.
+-   **Matching**:
+    -   `"mydomain.com"`: Matches the exact domain.
+    -   `".mydomain.com"`: Matches `mydomain.com` and any subdomain (e.g., `api.mydomain.com`).
+    -   `"*"`: Matches any host.
+
+### 10. Environment Variable Helper
 
 WebSpark includes a convenient `env` helper function in `webspark.utils` to simplify reading and parsing environment variables.
 

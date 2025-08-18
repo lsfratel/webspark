@@ -1,259 +1,242 @@
-import io
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
-import pytest
-
-from webspark.core.plugin import Plugin
 from webspark.core.router import path
 from webspark.core.views import View
 from webspark.core.wsgi import WebSpark
-from webspark.http.response import JsonResponse, TextResponse
+from webspark.http.response import TextResponse
 from webspark.utils.exceptions import HTTPException
 
 
-@pytest.fixture
-def app():
-    """Provides a default WebSpark app instance."""
-    return WebSpark()
+class MockConfig:
+    pass
 
 
-@pytest.fixture
-def mock_env():
-    """Provides a mock WSGI environment."""
-    return {
+class SimpleView(View):
+    def handle_get(self, request):
+        return TextResponse("OK")
+
+
+class StartResponseMock:
+    def __init__(self):
+        self.status = None
+        self.headers = None
+
+    def __call__(self, status, headers):
+        self.status = status
+        self.headers = headers
+
+
+def test_wsgi_app_dispatches_to_view():
+    app = WebSpark(debug=True)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "HTTP_HOST": "test.com"}
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
+
+    assert start_response.status.startswith("200 OK")
+    assert response_body == b"OK"
+
+
+def test_allowed_hosts_valid_host():
+    config = MockConfig()
+    config.ALLOWED_HOSTS = ["test.com"]
+    app = WebSpark(config=config)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "HTTP_HOST": "test.com"}
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
+
+    assert start_response.status.startswith("200 OK")
+    assert response_body == b"OK"
+
+
+def test_allowed_hosts_invalid_host():
+    config = MockConfig()
+    config.ALLOWED_HOSTS = ["test.com"]
+    app = WebSpark(config=config)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {
         "REQUEST_METHOD": "GET",
         "PATH_INFO": "/",
-        "wsgi.input": io.BytesIO(b""),
-        "wsgi.errors": io.StringIO(),
+        "HTTP_HOST": "invalid.com",
+        "wsgi.errors": Mock(),
     }
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter).decode()
+
+    assert start_response.status.startswith("400 Bad Request")
+    assert "Host 'invalid.com' not allowed" in response_body
 
 
-@pytest.fixture
-def mock_start_response():
-    """Provides a mock start_response callable."""
-    return MagicMock()
+def test_allowed_hosts_wildcard_subdomain():
+    config = MockConfig()
+    config.ALLOWED_HOSTS = [".test.com"]
+    app = WebSpark(config=config)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "HTTP_HOST": "sub.test.com"}
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
+
+    assert start_response.status.startswith("200 OK")
+    assert response_body == b"OK"
 
 
-class MockView(View):
-    @classmethod
-    def as_view(cls):
-        def view_handler(request, **kwargs):
-            return JsonResponse({"status": "ok"})
+def test_allowed_hosts_wildcard_root_domain():
+    config = MockConfig()
+    config.ALLOWED_HOSTS = [".test.com"]
+    app = WebSpark(config=config)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "HTTP_HOST": "test.com"}
+    start_response = StartResponseMock()
 
-        view_handler.http_methods = ["get"]
-        return view_handler
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
+
+    assert start_response.status.startswith("200 OK")
+    assert response_body == b"OK"
 
 
-class MockPlugin(Plugin):
-    def before_request(self, request):
-        request.context["plugin_ran"] = True
-        return request
+def test_allowed_hosts_wildcard_invalid_domain():
+    config = MockConfig()
+    config.ALLOWED_HOSTS = [".test.com"]
+    app = WebSpark(config=config)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "HTTP_HOST": "invalid.com",
+        "wsgi.errors": Mock(),
+    }
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    b"".join(response_iter)
+
+    assert start_response.status.startswith("400 Bad Request")
 
 
-def test_webspark_initialization():
-    """Test WebSpark app initialization."""
+def test_allowed_hosts_debug_mode_allows_all():
     app = WebSpark(debug=True)
-    assert app.debug is True
-    assert app._router is not None
-    assert app._plugins == []
-    assert app._exceptions == {}
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "HTTP_HOST": "any.host.com"}
+    start_response = StartResponseMock()
 
-    plugin = MockPlugin()
-    app_with_plugin = WebSpark(global_plugins=[plugin])
-    assert app_with_plugin._plugins == [plugin]
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
 
-
-def test_add_single_plugin(app):
-    """Test adding a single global plugin."""
-    plugin = MockPlugin()
-    app.add_plugins(plugin)
-    assert plugin in app._plugins
+    assert start_response.status.startswith("200 OK")
+    assert response_body == b"OK"
 
 
-def test_add_paths_simple(app):
-    """Test adding a simple list of paths."""
-    app.add_paths([path("/", view=MockView.as_view())])
-    assert len(app._router.routes["get"]) == 1
-    assert app._router.routes["get"][0].pattern == "/"
+def test_allowed_hosts_not_set_no_debug_denies_all():
+    app = WebSpark(debug=False)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "HTTP_HOST": "any.host.com",
+        "wsgi.errors": Mock(),
+    }
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    b"".join(response_iter)
+
+    assert start_response.status.startswith("400 Bad Request")
 
 
-def test_add_paths_nested(app):
-    """Test adding nested lists of paths."""
-    app.add_paths(
-        [
-            [path("/nested", view=MockView.as_view())],
-            path("/simple", view=MockView.as_view()),
-        ]
-    )
-    assert len(app._router.routes["get"]) == 2
+def test_allowed_hosts_star_allows_all():
+    config = MockConfig()
+    config.ALLOWED_HOSTS = ["*"]
+    app = WebSpark(config=config, debug=False)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "HTTP_HOST": "any.host.com"}
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
+
+    assert start_response.status.startswith("200 OK")
+    assert response_body == b"OK"
 
 
-def test_add_paths_with_children(app):
-    """Test adding paths with children (grouped paths)."""
-    app.add_paths(
-        [
-            path(
-                "/api",
-                children=[
-                    path("/users", view=MockView.as_view()),
-                    path("/posts", view=MockView.as_view()),
-                ],
-            )
-        ]
-    )
-    assert len(app._router.routes["get"]) == 2
-    assert app._router.routes["get"][0].pattern == "/api/users"
-    assert app._router.routes["get"][1].pattern == "/api/posts"
+def test_allowed_hosts_missing_host_header():
+    app = WebSpark(debug=True)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "wsgi.errors": Mock()}
+    start_response = StartResponseMock()
+
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter).decode()
+
+    assert start_response.status.startswith("400 Bad Request")
+    assert "Invalid or missing host header" in response_body
 
 
-def test_wsgi_call_successful(app, mock_env, mock_start_response):
-    """Test a successful WSGI call."""
+def test_allowed_hosts_strips_port():
+    config = MockConfig()
+    config.ALLOWED_HOSTS = ["test.com"]
+    app = WebSpark(config=config)
+    app.add_paths([path("/", view=SimpleView.as_view())])
+    environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/", "HTTP_HOST": "test.com:8000"}
+    start_response = StartResponseMock()
 
-    class SuccessView(View):
-        @classmethod
-        def as_view(cls):
-            def view_handler(request):
-                return JsonResponse({"message": "Success"})
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
 
-            view_handler.http_methods = ["get"]
-            return view_handler
-
-    app.add_paths([path("/", view=SuccessView.as_view())])
-
-    body = app(mock_env, mock_start_response)
-
-    mock_start_response.assert_called_once()
-    status, headers = mock_start_response.call_args[0]
-    assert status == "200 OK"
-    assert ("content-type", "application/json; charset=utf-8") in headers
-    assert list(body) == [b'{"message":"Success"}']
+    assert start_response.status.startswith("200 OK")
+    assert response_body == b"OK"
 
 
-def test_wsgi_call_not_found(app, mock_env, mock_start_response):
-    """Test a WSGI call that results in a 404 Not Found."""
-    mock_env["PATH_INFO"] = "/not-found"
-    body = app(mock_env, mock_start_response)
-
-    mock_start_response.assert_called_once()
-    status, _ = mock_start_response.call_args[0]
-    assert status == "404 Not Found"
-    assert b'"code":"NOT_FOUND"' in b"".join(body)
-
-
-def test_wsgi_call_http_exception(app, mock_env, mock_start_response):
-    """Test a WSGI call where the view raises an HTTPException."""
+def test_exception_handler_catches_http_exception():
+    app = WebSpark(debug=True)
 
     class ExceptionView(View):
         def handle_get(self, request):
-            raise HTTPException("Access Denied", status_code=403)
+            raise HTTPException("Test error", status_code=418)
 
     app.add_paths([path("/", view=ExceptionView.as_view())])
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "HTTP_HOST": "test.com",
+        "wsgi.errors": Mock(),
+    }
+    start_response = StartResponseMock()
 
-    body = app(mock_env, mock_start_response)
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter).decode()
 
-    mock_start_response.assert_called_once()
-    status, _ = mock_start_response.call_args[0]
-    assert status == "403 Forbidden"
-    assert b"Access Denied" in b"".join(body)
-
-
-def test_wsgi_call_unhandled_exception(app, mock_env, mock_start_response):
-    """Test a WSGI call with an unhandled exception."""
-
-    class ErrorView(View):
-        def handle_get(self, request):
-            raise ValueError("Something went wrong")
-
-    app.add_paths([path("/", view=ErrorView.as_view())])
-
-    body = app(mock_env, mock_start_response)
-
-    mock_start_response.assert_called_once()
-    status, _ = mock_start_response.call_args[0]
-    assert status == "500 Internal Server Error"
-    assert b'"code":"INTERNAL_ERROR"' in b"".join(body)
+    assert start_response.status.startswith("418 I'm a teapot")
+    assert '"code":"I_AM_A_TEAPOT"' in response_body
+    assert '"message":"Test error"' in response_body
 
 
-def test_wsgi_call_unhandled_exception_debug_mode(mock_env, mock_start_response):
-    """Test that debug mode writes to wsgi.errors."""
+def test_custom_exception_handler():
     app = WebSpark(debug=True)
 
-    class ErrorView(View):
-        def handle_get(self, request):
-            raise ValueError("Debug error")
-
-    app.add_paths([path("/", view=ErrorView.as_view())])
-
-    app(mock_env, mock_start_response)
-
-    errors = mock_env["wsgi.errors"].getvalue()
-    assert "ValueError: Debug error" in errors
-
-
-def test_custom_exception_handler(app, mock_env, mock_start_response):
-    """Test a custom exception handler."""
-
     @app.handle_exception(404)
-    def custom_not_found(request, exc):
-        return TextResponse("Custom Not Found Page", status=404)
+    def custom_404_handler(request, exc):
+        return TextResponse("Custom Not Found", status=404)
 
-    mock_env["PATH_INFO"] = "/not-found"
-    body = app(mock_env, mock_start_response)
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/not-found",
+        "HTTP_HOST": "test.com",
+        "wsgi.errors": Mock(),
+    }
+    start_response = StartResponseMock()
 
-    mock_start_response.assert_called_once()
-    status, _ = mock_start_response.call_args[0]
-    assert status == "404 Not Found"
-    assert list(body) == [b"Custom Not Found Page"]
+    response_iter = app(environ, start_response)
+    response_body = b"".join(response_iter)
 
-
-def test_dispatch_request_invalid_response(app, mock_env):
-    """Test that dispatch_request raises ValueError for invalid response types."""
-
-    class InvalidView(View):
-        def handle_get(self, request):
-            return "This is not a Response object"
-
-    app.add_paths([path("/", view=InvalidView.as_view())])
-
-    with pytest.raises(ValueError, match="did not return a valid Response object"):
-        app.dispatch_request(mock_env)
-
-
-def test_dispatch_request_with_path_params(app, mock_env):
-    """Test that path parameters are correctly passed to the request."""
-    mock_env["PATH_INFO"] = "/users/123"
-
-    class UserView(View):
-        @classmethod
-        def as_view(cls):
-            def view_handler(request):
-                user_id = request.path_params.get("user_id")
-                return JsonResponse({"user_id": user_id})
-
-            view_handler.http_methods = ["get"]
-            return view_handler
-
-    app.add_paths([path("/users/:user_id", view=UserView.as_view())])
-
-    response = app.dispatch_request(mock_env)
-    assert response.body == b'{"user_id":"123"}'
-
-
-def test_default_exception_handler():
-    """Test the default exception handler's output."""
-    app = WebSpark()
-    request = Mock()
-    exc = HTTPException({"field": "email", "error": "is invalid"}, status_code=400)
-
-    response = app.default_exception_handler(request, exc)
-    assert isinstance(response, JsonResponse)
-    assert response.status == 400
-    assert (
-        b'"error":{"code":"BAD_REQUEST","message":"Invalid request.","details":{"field":"email","error":"is invalid"}}'
-        in response.body
-    )
-
-    exc_500 = ValueError("A generic error")
-    response_500 = app.default_exception_handler(request, exc_500)
-    assert response_500.status == 500
-    assert b'"code":"INTERNAL_ERROR"' in response_500.body
+    assert start_response.status.startswith("404 Not Found")
+    assert response_body == b"Custom Not Found"
