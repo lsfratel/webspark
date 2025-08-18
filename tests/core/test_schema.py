@@ -16,6 +16,7 @@ from webspark.core.schema import (
     FloatField,
     IntegerField,
     ListField,
+    MethodField,
     ObjectSchema,
     RegexField,
     SerializerField,
@@ -70,7 +71,7 @@ def test_base_field_validate_required():
     field.name = "test_field"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(undefined)
+        field.validate(undefined, {})
 
     assert exc_info.value.status_code == 400
     assert "test_field" in exc_info.value.details
@@ -80,7 +81,7 @@ def test_base_field_validate_required():
 def test_base_field_validate_nullable():
     """Test BaseField validate with nullable field."""
     field = BaseField(required=True, nullable=True)
-    result = field.validate(None)
+    result = field.validate(None, {})
     assert result is None
 
 
@@ -93,18 +94,18 @@ def test_base_field_validate_with_validators():
         return value
 
     field = BaseField(validators=[validator])
-    result = field.validate("valid")
+    result = field.validate("valid", {})
     assert result == "valid"
 
     with pytest.raises(ValueError):
-        field.validate("invalid")
+        field.validate("invalid", {})
 
 
 def test_base_field_to_representation():
     """Test BaseField to_representation method."""
     field = BaseField()
     value = "test_value"
-    result = field.to_representation(value)
+    result = field.to_representation(value, {})
     assert result == value
 
 
@@ -303,10 +304,10 @@ def test_integer_field_validate():
     field = IntegerField()
     field.name = "age"
 
-    result = field.validate("30")
+    result = field.validate("30", {})
     assert result == 30
 
-    result = field.validate(30)
+    result = field.validate(30, {})
     assert result == 30
 
 
@@ -316,7 +317,7 @@ def test_integer_field_validate_invalid():
     field.name = "age"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "age" in exc_info.value.details
@@ -326,14 +327,14 @@ def test_integer_field_validate_invalid():
 def test_integer_field_validate_none():
     """Test IntegerField validate with None value."""
     field = IntegerField(required=False)
-    result = field.validate(None)
+    result = field.validate(None, {})
     assert result is None
 
 
 def test_integer_field_validate_with_default():
     """Test IntegerField validate with default value."""
     field = IntegerField(default=18)
-    result = field.validate(None)
+    result = field.validate(None, {})
     assert result == 18
 
 
@@ -342,11 +343,11 @@ def test_integer_field_validate_min_value():
     field = IntegerField(min_value=18)
     field.name = "age"
 
-    result = field.validate(25)
+    result = field.validate(25, {})
     assert result == 25
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(10)
+        field.validate(10, {})
 
     assert "Must be at least 18" in exc_info.value.details["age"][0]
 
@@ -356,11 +357,11 @@ def test_integer_field_validate_max_value():
     field = IntegerField(max_value=100)
     field.name = "age"
 
-    result = field.validate(50)
+    result = field.validate(50, {})
     assert result == 50
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(150)
+        field.validate(150, {})
 
     assert "Must be at most 100" in exc_info.value.details["age"][0]
 
@@ -370,10 +371,10 @@ def test_float_field_validate():
     field = FloatField()
     field.name = "price"
 
-    result = field.validate("30.5")
+    result = field.validate("30.5", {})
     assert result == 30.5
 
-    result = field.validate(30.5)
+    result = field.validate(30.5, {})
     assert result == 30.5
 
 
@@ -383,7 +384,7 @@ def test_float_field_validate_invalid():
     field.name = "price"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "price" in exc_info.value.details
@@ -395,11 +396,11 @@ def test_float_field_validate_min_value():
     field = FloatField(min_value=0.0)
     field.name = "price"
 
-    result = field.validate(10.5)
+    result = field.validate(10.5, {})
     assert result == 10.5
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(-5.0)
+        field.validate(-5.0, {})
 
     assert "Must be at least 0.0" in exc_info.value.details["price"][0]
 
@@ -409,11 +410,11 @@ def test_float_field_validate_max_value():
     field = FloatField(max_value=100.0)
     field.name = "price"
 
-    result = field.validate(50.0)
+    result = field.validate(50.0, {})
     assert result == 50.0
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(150.0)
+        field.validate(150.0, {})
 
     assert "Must be at most 100.0" in exc_info.value.details["price"][0]
 
@@ -423,7 +424,7 @@ def test_string_field_validate():
     field = StringField()
     field.name = "name"
 
-    result = field.validate("John")
+    result = field.validate("John", {})
     assert result == "John"
 
 
@@ -433,7 +434,7 @@ def test_string_field_validate_invalid():
     field.name = "name"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(123)
+        field.validate(123, {})
 
     assert exc_info.value.status_code == 400
     assert "name" in exc_info.value.details
@@ -445,11 +446,11 @@ def test_string_field_validate_min_length():
     field = StringField(min_length=3)
     field.name = "name"
 
-    result = field.validate("John")
+    result = field.validate("John", {})
     assert result == "John"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("Jo")
+        field.validate("Jo", {})
 
     assert "Cannot be shorter than 3 characters" in exc_info.value.details["name"][0]
 
@@ -459,11 +460,11 @@ def test_string_field_validate_max_length():
     field = StringField(max_length=5)
     field.name = "name"
 
-    result = field.validate("John")
+    result = field.validate("John", {})
     assert result == "John"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("John Doe")
+        field.validate("John Doe", {})
 
     assert "Cannot be longer than 5 characters" in exc_info.value.details["name"][0]
 
@@ -474,18 +475,18 @@ def test_boolean_field_validate():
     field.name = "active"
 
     # Test boolean values
-    assert field.validate(True) is True
-    assert field.validate(False) is False
+    assert field.validate(True, {}) is True
+    assert field.validate(False, {}) is False
 
     # Test string values
-    assert field.validate("true") is True
-    assert field.validate("false") is False
-    assert field.validate("1") is True
-    assert field.validate("0") is False
-    assert field.validate("yes") is True
-    assert field.validate("no") is False
-    assert field.validate("on") is True
-    assert field.validate("off") is False
+    assert field.validate("true", {}) is True
+    assert field.validate("false", {}) is False
+    assert field.validate("1", {}) is True
+    assert field.validate("0", {}) is False
+    assert field.validate("yes", {}) is True
+    assert field.validate("no", {}) is False
+    assert field.validate("on", {}) is True
+    assert field.validate("off", {}) is False
 
 
 def test_boolean_field_validate_invalid():
@@ -494,7 +495,7 @@ def test_boolean_field_validate_invalid():
     field.name = "active"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "active" in exc_info.value.details
@@ -504,7 +505,7 @@ def test_boolean_field_validate_invalid():
 def test_boolean_field_validate_none():
     """Test BooleanField validate with None value."""
     field = BooleanField(required=False)
-    result = field.validate(None)
+    result = field.validate(None, {})
     assert result is None
 
 
@@ -513,7 +514,7 @@ def test_list_field_validate():
     field = ListField()
     field.name = "items"
 
-    result = field.validate([1, 2, 3])
+    result = field.validate([1, 2, 3], {})
     assert result == [1, 2, 3]
 
 
@@ -523,7 +524,7 @@ def test_list_field_validate_invalid():
     field.name = "items"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("not a list")
+        field.validate("not a list", {})
 
     assert exc_info.value.status_code == 400
     assert "items" in exc_info.value.details
@@ -533,7 +534,7 @@ def test_list_field_validate_invalid():
 def test_list_field_validate_none():
     """Test ListField validate with None value."""
     field = ListField(required=False)
-    result = field.validate(None)
+    result = field.validate(None, {})
     assert result == []
 
 
@@ -542,11 +543,11 @@ def test_list_field_validate_min_items():
     field = ListField(min_items=2)
     field.name = "items"
 
-    result = field.validate([1, 2, 3])
+    result = field.validate([1, 2, 3], {})
     assert result == [1, 2, 3]
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate([1])
+        field.validate([1], {})
 
     assert "Must have at least 2 items" in exc_info.value.details["items"][0]
 
@@ -556,11 +557,11 @@ def test_list_field_validate_max_items():
     field = ListField(max_items=3)
     field.name = "items"
 
-    result = field.validate([1, 2])
+    result = field.validate([1, 2], {})
     assert result == [1, 2]
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate([1, 2, 3, 4])
+        field.validate([1, 2, 3, 4], {})
 
     assert "Must have at most 3 items" in exc_info.value.details["items"][0]
 
@@ -570,7 +571,7 @@ def test_list_field_validate_with_child_field():
     field = ListField(child=IntegerField())
     field.name = "numbers"
 
-    result = field.validate(["1", "2", "3"])
+    result = field.validate(["1", "2", "3"], {})
     assert result == [1, 2, 3]
 
 
@@ -580,7 +581,7 @@ def test_list_field_validate_with_child_field_errors():
     field.name = "numbers"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(["1", "invalid", "3"])
+        field.validate(["1", "invalid", "3"], {})
 
     assert exc_info.value.status_code == 400
     assert "numbers" in exc_info.value.details
@@ -589,7 +590,7 @@ def test_list_field_validate_with_child_field_errors():
 def test_list_field_to_representation():
     """Test ListField to_representation method."""
     field = ListField()
-    result = field.to_representation([1, 2, 3])
+    result = field.to_representation([1, 2, 3], {})
     assert result == [1, 2, 3]
 
 
@@ -599,7 +600,7 @@ def test_list_field_to_representation_with_child():
     child_field.to_representation.return_value = "mocked"
     field = ListField(child=child_field)
 
-    result = field.to_representation([1, 2, 3])
+    result = field.to_representation([1, 2, 3], {})
     assert result == ["mocked", "mocked", "mocked"]
     assert child_field.to_representation.call_count == 3
 
@@ -607,7 +608,7 @@ def test_list_field_to_representation_with_child():
 def test_list_field_to_representation_none():
     """Test ListField to_representation with None value."""
     field = ListField()
-    result = field.to_representation(None)
+    result = field.to_representation(None, {})
     assert result is None
 
 
@@ -617,7 +618,7 @@ def test_datetime_field_validate():
     field.name = "created_at"
 
     dt_str = "2023-01-01T12:00:00"
-    result = field.validate(dt_str)
+    result = field.validate(dt_str, {})
     assert isinstance(result, datetime)
     assert result.isoformat() == "2023-01-01T12:00:00"
 
@@ -626,7 +627,7 @@ def test_datetime_field_validate_datetime_object():
     """Test DateTimeField validate with datetime object."""
     field = DateTimeField()
     dt = datetime(2023, 1, 1, 12, 0, 0)
-    result = field.validate(dt)
+    result = field.validate(dt, {})
     assert result is dt
 
 
@@ -636,7 +637,7 @@ def test_datetime_field_validate_invalid():
     field.name = "created_at"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "created_at" in exc_info.value.details
@@ -649,7 +650,7 @@ def test_datetime_field_validate_invalid():
 def test_datetime_field_auto_now():
     """Test DateTimeField with auto_now."""
     field = DateTimeField(auto_now=True)
-    result = field.validate("2023-01-01T12:00:00")
+    result = field.validate("2023-01-01T12:00:00", {})
     assert isinstance(result, datetime)
     # Should return current time, not the provided value
 
@@ -660,7 +661,7 @@ def test_uuid_field_validate():
     field.name = "id"
 
     uuid_str = "550e8400-e29b-41d4-a716-446655440000"
-    result = field.validate(uuid_str)
+    result = field.validate(uuid_str, {})
     assert isinstance(result, uuid.UUID)
     assert str(result) == uuid_str
 
@@ -671,7 +672,7 @@ def test_uuid_field_validate_invalid():
     field.name = "id"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "id" in exc_info.value.details
@@ -683,7 +684,7 @@ def test_email_field_validate():
     field = EmailField()
     field.name = "email"
 
-    result = field.validate("test@example.com")
+    result = field.validate("test@example.com", {})
     assert result == "test@example.com"
 
 
@@ -693,7 +694,7 @@ def test_email_field_validate_invalid():
     field.name = "email"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "email" in exc_info.value.details
@@ -705,7 +706,7 @@ def test_url_field_validate():
     field = URLField()
     field.name = "website"
 
-    result = field.validate("https://example.com")
+    result = field.validate("https://example.com", {})
     assert result == "https://example.com"
 
 
@@ -715,7 +716,7 @@ def test_url_field_validate_invalid():
     field.name = "website"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "website" in exc_info.value.details
@@ -727,11 +728,11 @@ def test_url_field_validate_with_schemes():
     field = URLField(schemes=["https"])
     field.name = "website"
 
-    result = field.validate("https://example.com")
+    result = field.validate("https://example.com", {})
     assert result == "https://example.com"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("http://example.com")
+        field.validate("http://example.com", {})
 
     assert "Invalid URL scheme" in exc_info.value.details["website"][0]
 
@@ -747,12 +748,12 @@ def test_enum_field_validate_with_enum():
     field = EnumField(Color)
     field.name = "color"
 
-    result = field.validate("red")
+    result = field.validate("red", {})
     assert result == Color.RED
 
     # Test with enum value (should fail as it's not in choices)
     with pytest.raises(HTTPException):
-        field.validate(Color.GREEN)
+        field.validate(Color.GREEN, {})
 
 
 def test_enum_field_validate_with_list():
@@ -760,7 +761,7 @@ def test_enum_field_validate_with_list():
     field = EnumField(["red", "green", "blue"])
     field.name = "color"
 
-    result = field.validate("red")
+    result = field.validate("red", {})
     assert result == "red"
 
 
@@ -770,7 +771,7 @@ def test_enum_field_validate_invalid():
     field.name = "color"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("yellow")
+        field.validate("yellow", {})
 
     assert exc_info.value.status_code == 400
     assert "color" in exc_info.value.details
@@ -782,7 +783,7 @@ def test_decimal_field_validate():
     field = DecimalField()
     field.name = "price"
 
-    result = field.validate("10.50")
+    result = field.validate("10.50", {})
     assert isinstance(result, Decimal)
     assert result == Decimal("10.50")
 
@@ -793,7 +794,7 @@ def test_decimal_field_validate_invalid():
     field.name = "price"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "price" in exc_info.value.details
@@ -805,11 +806,11 @@ def test_decimal_field_validate_max_digits():
     field = DecimalField(max_digits=5)
     field.name = "price"
 
-    result = field.validate("123.45")
+    result = field.validate("123.45", {})
     assert result == Decimal("123.45")
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("12345.67")
+        field.validate("12345.67", {})
 
     assert "Must have at most 5 digits" in exc_info.value.details["price"][0]
 
@@ -819,11 +820,11 @@ def test_decimal_field_validate_decimal_places():
     field = DecimalField(decimal_places=2)
     field.name = "price"
 
-    result = field.validate("123.45")
+    result = field.validate("123.45", {})
     assert result == Decimal("123.45")
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("123.456")
+        field.validate("123.456", {})
 
     assert "Must have at most 2 decimal places" in exc_info.value.details["price"][0]
 
@@ -833,7 +834,7 @@ def test_regex_field_validate():
     field = RegexField(r"^\d{3}-\d{3}-\d{4}$")
     field.name = "phone"
 
-    result = field.validate("123-456-7890")
+    result = field.validate("123-456-7890", {})
     assert result == "123-456-7890"
 
 
@@ -843,7 +844,7 @@ def test_regex_field_validate_invalid():
     field.name = "phone"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate("invalid")
+        field.validate("invalid", {})
 
     assert exc_info.value.status_code == 400
     assert "phone" in exc_info.value.details
@@ -851,6 +852,40 @@ def test_regex_field_validate_invalid():
         "Value does not match the required pattern"
         in exc_info.value.details["phone"][0]
     )
+
+
+def test_method_field_validate():
+    """Test the method field validation."""
+    schema = Mock()
+    schema.get_method = lambda data: data["test"]
+
+    field = MethodField(method_name="get_method")
+    field.schema = schema
+    result = field.validate(None, {"test": True})
+    assert result is True
+
+
+def test_method_field_raise_for_no_method():
+    """Test MethodField raise for no method."""
+    field = MethodField(method_name="non_existent_method")
+    field.schema = object()
+    with pytest.raises(AttributeError):
+        field.validate(None, {})
+
+
+def test_method_field_to_representation():
+    """Test MethodField to_representation method."""
+    obj = Mock()
+    obj.some_attr = "value"
+
+    schema = Mock()
+    schema.get_method = lambda obj: obj.some_attr
+
+    field = MethodField(method_name="get_method")
+    field.schema = schema
+
+    result = field.to_representation(None, obj)
+    assert result == "value"
 
 
 def test_serializer_field_validate_single():
@@ -863,7 +898,7 @@ def test_serializer_field_validate_single():
     field.name = "nested"
 
     data = {"name": "John"}
-    result = field.validate(data)
+    result = field.validate(data, {})
     assert result == {"name": "John"}
 
 
@@ -878,7 +913,7 @@ def test_serializer_field_validate_single_invalid():
 
     data = {}
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(data)
+        field.validate(data, {})
 
     assert exc_info.value.status_code == 400
     assert "nested" in exc_info.value.details
@@ -894,7 +929,7 @@ def test_serializer_field_validate_many():
     field.name = "nested"
 
     data = [{"name": "John"}, {"name": "Jane"}]
-    result = field.validate(data)
+    result = field.validate(data, {})
     assert result == [{"name": "John"}, {"name": "Jane"}]
 
 
@@ -909,7 +944,7 @@ def test_serializer_field_validate_many_invalid():
 
     data = [{"name": "John"}, {}]
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(data)
+        field.validate(data, {})
 
     assert exc_info.value.status_code == 400
     assert "nested" in exc_info.value.details
@@ -926,7 +961,7 @@ def test_serializer_field_validate_many_not_list():
 
     data = {"name": "John"}
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(data)
+        field.validate(data, {})
 
     assert exc_info.value.status_code == 400
     assert "nested" in exc_info.value.details
@@ -940,7 +975,7 @@ def test_serializer_field_validate_none_not_required():
         name = StringField()
 
     field = SerializerField(NestedSchema, required=False)
-    result = field.validate(None)
+    result = field.validate(None, {})
     assert result is None
 
 
@@ -958,7 +993,7 @@ def test_serializer_field_to_representation_single():
 
     field = SerializerField(NestedSchema)
     data = {"name": "John"}
-    result = field.to_representation(data)
+    result = field.to_representation(data, {})
     assert result == {"name": "John"}
 
 
@@ -976,7 +1011,7 @@ def test_serializer_field_to_representation_many():
 
     field = SerializerField(NestedSchema, many=True)
     data = [{"name": "John"}, {"name": "Jane"}]
-    result = field.to_representation(data)
+    result = field.to_representation(data, {})
     assert result == [{"name": "John"}, {"name": "Jane"}]
 
 
@@ -993,7 +1028,7 @@ def test_serializer_field_to_representation_none():
             return None
 
     field = SerializerField(NestedSchema)
-    result = field.to_representation(None)
+    result = field.to_representation(None, {})
     assert result is None
 
 
@@ -1016,7 +1051,7 @@ def test_object_schema_full_integration():
         created_at = DateTimeField()
 
         def validate(self, data):
-            # Custom validation
+            data = super().validate(data)
             if data.get("age", 0) < 18 and data.get("is_active", False):
                 raise HTTPException(
                     {"age": ["Must be at least 18 to be active."]}, status_code=400

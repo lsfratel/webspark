@@ -38,6 +38,7 @@ class BaseField:
         nullable (bool): Whether the field can be None. Defaults to False.
         field_name (str): Name of the field in the schema.
         name (str): Name used when accessing data (source_name or field_name).
+        schema (ObjectSchema): The schema to which the field belongs.
     """
 
     def __init__(
@@ -64,12 +65,14 @@ class BaseField:
         self.validators = validators or []
         self.name: str = None
         self.nullable = nullable
+        self.schema: ObjectSchema = None
 
-    def validate(self, value: Any) -> Any:
+    def validate(self, value: Any, data: Any) -> Any:
         """Validate the field value.
 
         Args:
             value: The value to validate.
+            data: The complete data containing all fields.
 
         Returns:
             The validated value.
@@ -90,11 +93,12 @@ class BaseField:
 
         return value
 
-    def to_representation(self, value: Any) -> Any:
+    def to_representation(self, value: Any, obj: Any) -> Any:
         """Convert the field value to its serialized representation.
 
         Args:
             value: The value to convert.
+            obj: The object instance.
 
         Returns:
             The converted value.
@@ -258,12 +262,10 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
             if raw_value in (undefined, None):
                 if field.default is not None:
                     raw_value = field.default
-                elif field.required:
-                    errors[source_name] = ["This field is required."]
-                    continue
 
             try:
-                validated_value = field.validate(raw_value)
+                field.schema = self
+                validated_value = field.validate(raw_value, initial_data)
                 validated_data[field_name] = validated_value
             except HTTPException as e:
                 errors.update(e.details)
@@ -289,7 +291,7 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
             return {}
 
         return {
-            field_name: field.to_representation(getattr(obj, field.name, None))
+            field_name: field.to_representation(getattr(obj, field.name, None), obj)
             for field_name, field in self.fields.items()
         }
 
@@ -308,8 +310,8 @@ class IntegerField(BaseField):
         self.min_value = min_value
         self.max_value = max_value
 
-    def validate(self, value: Any) -> int:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> int:
+        value = super().validate(value, data)
         if value is None:
             return self.default if self.default is not None else None
         try:
@@ -343,8 +345,8 @@ class FloatField(BaseField):
         self.min_value = min_value
         self.max_value = max_value
 
-    def validate(self, value: Any) -> float:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> float:
+        value = super().validate(value, data)
         if value is None:
             return self.default if self.default is not None else None
         try:
@@ -378,8 +380,8 @@ class StringField(BaseField):
         self.min_length = min_length
         self.max_length = max_length
 
-    def validate(self, value: Any) -> str:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> str:
+        value = super().validate(value, data)
         if value is None:
             return self.default if self.default is not None else None
         if not isinstance(value, str):
@@ -409,8 +411,8 @@ class BooleanField(BaseField):
     _TRUE_VALUES = {"true", "1", "yes", "on"}
     _FALSE_VALUES = {"false", "0", "no", "off"}
 
-    def validate(self, value: Any) -> bool:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> bool:
+        value = super().validate(value, data)
         if value is None:
             return self.default if self.default is not None else None
         if isinstance(value, bool):
@@ -446,8 +448,8 @@ class ListField(BaseField):
         self.min_items = min_items
         self.max_items = max_items
 
-    def validate(self, value: Any) -> list:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> list:
+        value = super().validate(value, data)
         if value is None:
             return []
         if not isinstance(value, list):
@@ -467,7 +469,7 @@ class ListField(BaseField):
             errors = []
             for i, item in enumerate(value):
                 try:
-                    validated.append(self.child.validate(item))
+                    validated.append(self.child.validate(item, data))
                 except HTTPException as e:
                     errors.append({i: e.details})
             if errors:
@@ -475,11 +477,11 @@ class ListField(BaseField):
             return validated
         return value
 
-    def to_representation(self, value: list) -> list:
+    def to_representation(self, value: list, obj: Any) -> list:
         if value is None:
             return None
         if self.child and value:
-            return [self.child.to_representation(item) for item in value]
+            return [self.child.to_representation(item, obj) for item in value]
         return value
 
 
@@ -505,7 +507,7 @@ class SerializerField(BaseField):
         self.many = many
         self.initkwargs = initkwargs or {}
 
-    def validate(self, value: Any) -> dict | list[dict]:
+    def validate(self, value: Any, data: Any):
         if value is None and not self.required:
             return None
 
@@ -538,7 +540,7 @@ class SerializerField(BaseField):
                 raise HTTPException({self.name: serializer.errors}, status_code=400)
             return serializer.validated_data
 
-    def to_representation(self, value: Any):
+    def to_representation(self, value: Any, obj: Any):
         if value is None:
             return [] if self.many else None
 
@@ -563,10 +565,10 @@ class DateTimeField(BaseField):
         self.auto_now = auto_now
         self.auto_now_add = auto_now_add
 
-    def validate(self, value: Any) -> datetime:
+    def validate(self, value: Any, data: Any) -> datetime:
         if self.auto_now or self.auto_now_add:
             return datetime.now()
-        value = super().validate(value)
+        value = super().validate(value, data)
         if value is None:
             return self.default
         if isinstance(value, datetime):
@@ -583,8 +585,8 @@ class DateTimeField(BaseField):
 class UUIDField(BaseField):
     """Field for validating UUID values."""
 
-    def validate(self, value: Any) -> uuid.UUID:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> uuid.UUID:
+        value = super().validate(value, data)
         if value is None:
             return self.default
         try:
@@ -607,8 +609,8 @@ class URLField(StringField):
         super().__init__(**kwargs)
         self.schemes = schemes
 
-    def validate(self, value: Any) -> str:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> str:
+        value = super().validate(value, data)
         if value is None:
             return self.default
         parsed = urlparse(value)
@@ -645,8 +647,8 @@ class EnumField(BaseField):
             self.enum_type = None
             self.choices = enum
 
-    def validate(self, value: Any) -> Any:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> Any:
+        value = super().validate(value, data)
         if value is None:
             return self.default
         if value not in self.choices:
@@ -672,8 +674,8 @@ class DecimalField(BaseField):
         self.max_digits = max_digits
         self.decimal_places = decimal_places
 
-    def validate(self, value: Any) -> Decimal:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> Decimal:
+        value = super().validate(value, data)
         if value is None:
             return self.default
         try:
@@ -713,8 +715,8 @@ class RegexField(StringField):
         super().__init__(**kwargs)
         self.pattern = re.compile(pattern)
 
-    def validate(self, value: Any) -> str:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> str:
+        value = super().validate(value, data)
         if value is None:
             return self.default
         if not self.pattern.fullmatch(value):
@@ -730,8 +732,8 @@ class EmailField(StringField):
 
     EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+")
 
-    def validate(self, value: Any) -> str:
-        value = super().validate(value)
+    def validate(self, value: Any, data: Any) -> str:
+        value = super().validate(value, data)
         if value is None:
             return self.default
         if not self.EMAIL_REGEX.fullmatch(value):
@@ -739,3 +741,36 @@ class EmailField(StringField):
                 {self.name: ["Value must be a valid email address."]}, status_code=400
             )
         return value
+
+
+class MethodField(BaseField):
+    """Field for defining a method that will be called to represent the value.
+
+    Args:
+        method_name: The name of the method to call for representation.
+        **kwargs: Additional arguments passed to StringField.
+    """
+
+    def __init__(self, method_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.method_name = method_name
+
+    def get_method(self) -> Callable:
+        method = getattr(self.schema, self.method_name, None)
+
+        if not callable(method):
+            raise AttributeError(
+                f"'{self.schema.__class__.__name__}' object has no callable method '{self.method_name}'."
+            )
+
+        return method
+
+    def validate(self, value: Any, data: Any) -> Any:
+        method = self.get_method()
+        value = method(data)
+        return super().validate(value, data)
+
+    def to_representation(self, value: Any, obj: Any) -> Any:
+        method = self.get_method()
+        value = method(obj)
+        return super().to_representation(value, obj)

@@ -169,7 +169,7 @@ class CreateUserView(View):
 
 #### Available Fields
 
-WebSpark offers a rich set of fields for comprehensive validation: `StringField`, `IntegerField`, `FloatField`, `BooleanField`, `ListField`, `SerializerField` (for nested objects), `DateTimeField`, `UUIDField`, `EmailField`, `URLField`, `EnumField`, `DecimalField`, and `RegexField`.
+WebSpark offers a rich set of fields for comprehensive validation: `StringField`, `IntegerField`, `FloatField`, `BooleanField`, `ListField`, `SerializerField` (for nested objects), `DateTimeField`, `UUIDField`, `EmailField`, `URLField`, `EnumField`, `DecimalField`, `MethodField` and `RegexField`.
 
 ### 4. Responses
 
