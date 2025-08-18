@@ -262,7 +262,32 @@ class UserView(View):
         return JsonResponse({"user": user.serialize()})
 ```
 
-### 8. Proxy Configuration
+### 8. Custom Exception Handlers
+
+WebSpark allows you to define custom handlers for specific HTTP status codes using the `@app.handle_exception(status_code)` decorator. This is useful for overriding the default JSON error response and providing custom error pages or formats.
+
+The handler function receives the `request` and the `exception` object and must return a `Response` object.
+
+```python
+from webspark.http import HTMLResponse, TextResponse
+
+app = WebSpark(debug=True)
+
+@app.handle_exception(404)
+def handle_not_found(request, exc):
+    """Custom handler for 404 Not Found errors."""
+    return HTMLResponse("<h1>Oops! Page not found.</h1>", status=404)
+
+@app.handle_exception(500)
+def handle_server_error(request, exc):
+    """Custom handler for 500 Internal Server Error."""
+    if app.debug:
+        # In debug mode, show the full exception
+        return TextResponse(str(exc), status=500)
+    return HTMLResponse("<h1>A server error occurred.</h1>", status=500)
+```
+
+### 9. Proxy Configuration
 
 If your WebSpark application is running behind a reverse proxy (like Nginx or a load balancer), you'll need to configure it to correctly handle headers like `X-Forwarded-For` and `X-Forwarded-Proto`. This ensures that `request.ip`, `request.scheme`, and `request.host` reflect the original client information, not the proxy's.
 
@@ -287,7 +312,7 @@ The framework checks for the following headers when `TRUST_PROXY` is enabled:
 -   `X-Forwarded-Proto` for the request scheme (`http` or `https`).
 -   `X-Forwarded-Host` for the original host.
 
-### 9. Allowed Hosts
+### 10. Allowed Hosts
 
 To prevent HTTP Host header attacks, WebSpark checks the request's `Host` header against a list of allowed hostnames. This is configured via the `ALLOWED_HOSTS` setting on the configuration object.
 
@@ -307,7 +332,7 @@ app = WebSpark(config=AppConfig())
     -   `".mydomain.com"`: Matches `mydomain.com` and any subdomain (e.g., `api.mydomain.com`).
     -   `"*"`: Matches any host.
 
-### 10. Environment Variable Helper
+### 11. Environment Variable Helper
 
 WebSpark includes a convenient `env` helper function in `webspark.utils` to simplify reading and parsing environment variables.
 
