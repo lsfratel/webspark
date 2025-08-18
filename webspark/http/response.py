@@ -220,8 +220,23 @@ class JsonResponse(Response):
             status: HTTP status code (default: 200).
             headers: Additional headers.
         """
-        json_body = serialize_json(data)
-        super().__init__(json_body, status, headers, "application/json; charset=utf-8")
+        super().__init__(data, status, headers, "application/json; charset=utf-8")
+
+    @cached_property
+    def _body_bytes(self) -> bytes:
+        """Convert response body to bytes.
+
+        Returns:
+            bytes: The response body as bytes.
+        """
+        if isinstance(self.body, bytes):
+            return self.body
+        if isinstance(self.body, str):
+            return self.body.encode(self.charset)
+        if hasattr(self.body, "__bytes__"):
+            return bytes(self.body)
+
+        return serialize_json(self.body)
 
 
 class HTMLResponse(Response):
