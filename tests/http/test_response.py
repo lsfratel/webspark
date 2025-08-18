@@ -6,6 +6,7 @@ import pytest
 from webspark.http.response import (
     HTMLResponse,
     JsonResponse,
+    RedirectResponse,
     Response,
     StreamResponse,
     SuccessResponse,
@@ -227,6 +228,24 @@ def test_html_response():
     assert response.body == html
     assert response.status == 200
     assert response.headers["content-type"] == "text/html; charset=utf-8"
+
+
+def test_redirect_response_temporary():
+    """Test RedirectResponse for temporary redirects."""
+    url = "/new-location"
+    response = RedirectResponse(url)
+
+    assert response.status == 302
+    assert response.headers["location"] == url
+
+
+def test_redirect_response_permanent():
+    """Test RedirectResponse for permanent redirects."""
+    url = "/new-home"
+    response = RedirectResponse(url, permanent=True)
+
+    assert response.status == 301
+    assert response.headers["location"] == url
 
 
 def test_stream_response_with_bytes():

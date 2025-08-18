@@ -217,7 +217,10 @@ class JsonResponse(Response):
     """
 
     def __init__(
-        self, data: Any, status: int = 200, headers: dict[str, str] | None = None
+        self,
+        data: Any,
+        status: int = 200,
+        headers: dict[str, str] | None = None,
     ):
         """Initialize a JsonResponse.
 
@@ -268,6 +271,42 @@ class HTMLResponse(Response):
             headers: Additional headers.
         """
         super().__init__(html, status, headers, "text/html; charset=utf-8")
+
+
+class RedirectResponse(Response):
+    """HTTP redirect response.
+
+    This class creates a response that redirects the client to a new URL.
+    By default, it issues a temporary redirect (302), but can be configured
+    for permanent redirects (301).
+
+    Example:
+        # Temporary redirect
+        response = RedirectResponse("/new-location")
+
+        # Permanent redirect
+        response = RedirectResponse("/new-home", permanent=True)
+    """
+
+    def __init__(
+        self,
+        url: str,
+        body: Any = b"",
+        permanent: bool = False,
+        headers: dict[str, str] | None = None,
+        content_type: str | None = None,
+    ):
+        """Initialize a RedirectResponse.
+
+        Args:
+            url: The URL to redirect to.
+            permanent: If True, issues a 301 permanent redirect.
+                       Otherwise, issues a 302 temporary redirect.
+            headers: Additional headers.
+        """
+        status = 301 if permanent else 302
+        headers = {**(headers or {}), "Location": url}
+        super().__init__(body, status, headers, content_type)
 
 
 class StreamResponse(Response):

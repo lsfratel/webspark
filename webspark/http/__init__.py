@@ -3,6 +3,7 @@ from .request import Request
 from .response import (
     HTMLResponse,
     JsonResponse,
+    RedirectResponse,
     Response,
     StreamResponse,
     SuccessResponse,
@@ -18,4 +19,5 @@ __all__ = [
     "StreamResponse",
     "SuccessResponse",
     "TextResponse",
+    "RedirectResponse",
 ]

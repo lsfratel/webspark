@@ -176,7 +176,7 @@ WebSpark offers a rich set of fields for comprehensive validation: `StringField`
 WebSpark provides convenient `Response` subclasses for common content types.
 
 ```python
-from webspark.http import JsonResponse, HTMLResponse, TextResponse, StreamResponse
+from webspark.http import JsonResponse, HTMLResponse, TextResponse, StreamResponse, RedirectResponse
 
 # JSON response (most common for APIs)
 return JsonResponse({"message": "Success"})
@@ -189,6 +189,9 @@ return TextResponse("OK")
 
 # Stream a large file without loading it all into memory
 return StreamResponse("/path/to/large/video.mp4")
+
+# Redirect response
+return RedirectResponse("/new-url")
 ```
 
 ### 5. Cookies
