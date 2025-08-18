@@ -33,6 +33,45 @@ def env(
     *,
     raise_exception: bool = False,
 ) -> Any:
+    """
+    Retrieves and parses an environment variable.
+
+    This function provides a convenient way to access environment variables,
+    with options for default values, custom parsing, and robust boolean casting.
+
+    Args:
+        key: The name of the environment variable.
+        default: The default value to return if the variable is not set.
+                 If `None` and the variable is not set, `None` is returned.
+        parser: A callable used to parse the environment variable's string value.
+                If the parser is `bool`, the function performs a smart conversion,
+                treating "true", "1", "yes", "y", and "on" (case-insensitive) as `True`,
+                and any other non-empty string as `False`.
+        raise_exception: If `True`, a `ValueError` is raised if the environment
+                         variable is not set and no default value is provided.
+
+    Returns:
+        The parsed value of the environment variable, the default value, or `None`.
+
+    Raises:
+        ValueError: If `raise_exception` is `True` and the environment variable
+                    is not set and no default is provided.
+
+    Example:
+        >>> os.environ["DEBUG"] = "true"
+        >>> env("DEBUG", parser=bool)
+        True
+
+        >>> os.environ["PORT"] = "8080"
+        >>> env("PORT", default=8000, parser=int)
+        8080
+
+        >>> env("DATABASE_URL", "sqlite:///default.db")
+        "sqlite:///default.db"
+
+        >>> env("SECRET_KEY", raise_exception=True)
+        # Raises ValueError if SECRET_KEY is not set
+    """
     value = os.getenv(key)
 
     if value is None:
@@ -42,4 +81,10 @@ def env(
             )
         return default
 
-    return parser(value) if parser else value
+    if parser is bool:
+        return value.lower() in ("true", "1", "yes", "y", "on")
+
+    if parser:
+        return parser(value)
+
+    return value

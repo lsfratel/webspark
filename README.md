@@ -262,6 +262,50 @@ class UserView(View):
         return JsonResponse({"user": user.serialize()})
 ```
 
+### 8. Proxy Configuration
+
+If your WebSpark application is running behind a reverse proxy (like Nginx or a load balancer), you'll need to configure it to correctly handle headers like `X-Forwarded-For` and `X-Forwarded-Proto`. This ensures that `request.ip`, `request.scheme`, and `request.host` reflect the original client information, not the proxy's.
+
+Proxy support is configured on the `WebSpark` application instance via a configuration object.
+
+```python
+class AppConfig:
+    TRUST_PROXY = True
+    # For more granular control, you can also specify:
+    # TRUSTED_PROXY_LIST = ["192.168.1.1", "10.0.0.1"] # List of trusted proxy IPs
+    # TRUSTED_PROXY_COUNT = 1 # Number of trusted proxies in the chain
+
+app = WebSpark(config=AppConfig())
+```
+
+-   **`TRUST_PROXY`**: (bool) Set to `True` to enable proxy header processing. Defaults to `False`.
+-   **`TRUSTED_PROXY_LIST`**: (list) A list of trusted proxy IP addresses. If set, only requests from these IPs will have their proxy headers processed.
+-   **`TRUSTED_PROXY_COUNT`**: (int) The number of reverse proxies that are trusted in the chain. This is useful when you have a known number of proxies.
+
+The framework checks for the following headers when `TRUST_PROXY` is enabled:
+-   `X-Forwarded-For` and `X-Real-IP` for the client's IP address.
+-   `X-Forwarded-Proto` for the request scheme (`http` or `https`).
+-   `X-Forwarded-Host` for the original host.
+
+### 9. Environment Variable Helper
+
+WebSpark includes a convenient `env` helper function in `webspark.utils` to simplify reading and parsing environment variables.
+
+```python
+from webspark.utils import env
+
+# Get a string value with a default
+DATABASE_URL = env("DATABASE_URL", default="sqlite:///default.db")
+
+# Get an integer, raising an error if not set
+PORT = env("PORT", parser=int, raise_exception=True)
+
+# Get a boolean value (handles "true", "1", "yes", "on")
+DEBUG = env("DEBUG", default=False, parser=bool)
+```
+
+This helper streamlines configuration management, making it easy to handle different data types and required settings.
+
 ## Development
 
 ### Running Tests

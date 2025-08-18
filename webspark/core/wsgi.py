@@ -46,9 +46,15 @@ class WebSpark:
         _plugins (list): Global plugins/middleware applied to all routes.
         _exceptions (dict): Custom exception handlers mapped by status code.
         debug (bool): Debug mode flag for detailed error reporting.
+        config (object): Configuration object for the application.
     """
 
-    def __init__(self, global_plugins: list[Plugin] = None, debug=False):
+    def __init__(
+        self,
+        global_plugins: list[Plugin] = None,
+        config: object = None,
+        debug: bool = False,
+    ):
         """Initialize the WebSpark application.
 
         Args:
@@ -59,6 +65,7 @@ class WebSpark:
         self._plugins = global_plugins or []
         self._exceptions = {}
         self.debug = debug
+        self.config = config or object()
 
     def add_paths(self, paths: list[path | list]):
         """Add routes to the application from path objects.
@@ -111,6 +118,7 @@ class WebSpark:
                     return TextResponse(str(exc), status=500)
                 return HTMLResponse("<h1>Internal Server Error</h1>", status=500)
         """
+
         def wrapper(func: Callable[[Request, Exception], Response]):
             self._exceptions[status] = func
 
@@ -139,7 +147,7 @@ class WebSpark:
             exc_handler = self._exceptions.get(
                 getattr(exc, "status_code", 500), self.default_exception_handler
             )
-            response = exc_handler(Request(env), exc)
+            response = exc_handler(self.creat_request(env), exc)
 
         status_str, headers, body_iter = response.as_wsgi()
 
@@ -205,9 +213,7 @@ class WebSpark:
 
         params, route = self._router.match(http_method, path_info)
 
-        env["webspark.instance"] = self
-
-        request = Request(env)
+        request = self.creat_request(env)
         request.path_params = params
 
         resp = route(request)
@@ -216,3 +222,16 @@ class WebSpark:
             raise ValueError("Route handler did not return a valid Response object.")
 
         return resp
+
+    def creat_request(self, env: dict):
+        """Create a Request object from the WSGI environment.
+
+        Args:
+            env: WSGI environment dictionary.
+
+        Returns:
+            Request: The created Request object.
+        """
+
+        env["webspark.instance"] = self
+        return Request(env)

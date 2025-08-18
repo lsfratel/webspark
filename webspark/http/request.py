@@ -13,7 +13,6 @@ from ..constants import BODY_METHODS
 from ..utils import HTTPException, cached_property, deserialize_json
 from .multipart import MultipartParser
 
-_MAX_CONTENT_LENGTH = 10 * 1024 * 1024
 _SUPPORTED_CONTENT_TYPES = frozenset(
     ("application/x-www-form-urlencoded", "application/json", "multipart/form-data")
 )
@@ -93,11 +92,34 @@ class Request:
             stream=stream,
             content_type=content_type,
             content_length=self.content_length,
-            max_body_size=_MAX_CONTENT_LENGTH,
+            max_body_size=self.max_body_size,
             encoding=self.charset,
         )
 
         self._forms, self._files = self._multipart_parser.parse()
+
+    def _get_forwarded_ips(self) -> list[str]:
+        """Return a list of IPs from X-Forwarded-For header and REMOTE_ADDR."""
+        x_forwarded_for = self.headers.get("x-forwarded-for")
+        ips = (
+            [ip.strip() for ip in x_forwarded_for.split(",")] if x_forwarded_for else []
+        )
+        remote_addr = self.ENV.get("REMOTE_ADDR")
+        if remote_addr:
+            ips.append(remote_addr)
+        return ips
+
+    def _is_proxy_trusted(self) -> bool:
+        if not getattr(self.webspark.config, "TRUST_PROXY", False):
+            return False
+
+        trusted_proxies = getattr(self.webspark.config, "TRUSTED_PROXY_LIST", None)
+        if trusted_proxies:
+            remote_addr = self.ENV.get("REMOTE_ADDR", "")
+            if remote_addr not in trusted_proxies:
+                return False
+
+        return True
 
     @property
     def view_instance(self) -> View:
@@ -138,9 +160,9 @@ class Request:
             )
 
         content_length = self.content_length
-        if content_length > _MAX_CONTENT_LENGTH:
+        if content_length > self.max_body_size:
             raise HTTPException(
-                f"Request body too large. Maximum allowed: {_MAX_CONTENT_LENGTH} bytes.",
+                f"Request body too large. Maximum allowed: {self.max_body_size} bytes.",
                 status_code=413,
             )
 
@@ -211,6 +233,15 @@ class Request:
             params: Dictionary of path parameters.
         """
         self._path_params = params
+
+    @cached_property
+    def max_body_size(self) -> int:
+        """Get the maximum allowed body size for the request in bytes.
+
+        Returns:
+            int: The maximum body size in bytes.
+        """
+        return getattr(self.webspark.config, "MAX_BODY_SIZE", 10 * 1024 * 1024)
 
     @cached_property
     def method(self) -> str:
@@ -328,3 +359,113 @@ class Request:
                 key, val = chunk.split("=", 1)
                 cookies[key.strip()] = val.strip()
         return cookies
+
+    @cached_property
+    def ip(self) -> str:
+        """Get the client's IP address.
+
+        If TRUST_PROXY is enabled, it respects proxy headers to determine the
+        true client IP address. The behavior is controlled by TRUST_PROXY,
+        TRUSTED_PROXY_LIST, and TRUSTED_PROXY_COUNT configuration settings.
+
+        Returns:
+            str: The client's IP address.
+        """
+        if not getattr(self.webspark.config, "TRUST_PROXY", False):
+            return self.ENV.get("REMOTE_ADDR", "")
+
+        ips = self._get_forwarded_ips()
+        if not ips:
+            x_real_ip = self.headers.get("x-real-ip")
+            if x_real_ip:
+                return x_real_ip.strip()
+            return self.ENV.get("REMOTE_ADDR", "")
+
+        trusted_proxies = getattr(self.webspark.config, "TRUSTED_PROXY_LIST", None)
+        if trusted_proxies:
+            if ips[-1] not in trusted_proxies:
+                return ips[-1]
+
+            for ip in reversed(ips):
+                if ip not in trusted_proxies:
+                    return ip
+            return ips[0]
+
+        proxy_count = getattr(self.webspark.config, "TRUSTED_PROXY_COUNT", 0)
+        if proxy_count > 0:
+            if len(ips) > proxy_count:
+                return ips[-(proxy_count + 1)]
+            else:
+                return ips[0]
+
+        x_forwarded_for = self.headers.get("x-forwarded-for")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+
+        x_real_ip = self.headers.get("x-real-ip")
+        if x_real_ip:
+            return x_real_ip.strip()
+
+        return self.ENV.get("REMOTE_ADDR", "")
+
+    @cached_property
+    def scheme(self) -> str:
+        """Get the request scheme, respecting X-Forwarded-Proto."""
+        if self._is_proxy_trusted():
+            x_forwarded_proto = self.headers.get("x-forwarded-proto")
+            if x_forwarded_proto:
+                return x_forwarded_proto.split(",")[0].strip().lower()
+        return self.ENV.get("wsgi.url_scheme", "http")
+
+    @property
+    def is_secure(self) -> bool:
+        """Check if the request is secure (HTTPS).
+
+        Returns:
+            bool: True if the request is secure, False otherwise.
+        """
+        return self.scheme == "https"
+
+    @cached_property
+    def host(self) -> str:
+        """Get the request host, respecting X-Forwarded-Host."""
+        if self._is_proxy_trusted():
+            x_forwarded_host = self.headers.get("x-forwarded-host")
+            if x_forwarded_host:
+                return x_forwarded_host.split(",")[0].strip()
+        return self.ENV.get("HTTP_HOST") or self.ENV.get("SERVER_NAME", "")
+
+    @cached_property
+    def url(self) -> str:
+        """Get the full request URL.
+
+        Returns:
+            str: The full request URL.
+        """
+        host = self.host
+        if not host:
+            return self.path
+
+        url = f"{self.scheme}://{host}{self.path}"
+        query_string = self.ENV.get("QUERY_STRING")
+        if query_string:
+            url += f"?{query_string}"
+        return url
+
+    @cached_property
+    def accept(self) -> str:
+        """Get the 'Accept' header.
+
+        Returns:
+            str: The 'Accept' header.
+        """
+        return self.headers.get("accept", "")
+
+    @cached_property
+    def user_agent(self) -> str:
+        """Get the 'User-Agent' header.
+
+        Returns:
+            str: The 'User-Agent' header.
+        """
+        return self.headers.get("user-agent", "")
