@@ -5,135 +5,100 @@ from http.cookies import SimpleCookie
 
 import pytest
 
-from webspark.http.cookie import Cookie
-
-
-def test_cookie_initialization():
-    """Test cookie initialization with default options."""
-    cookie = Cookie("test_cookie")
-    assert cookie.name == "test_cookie"
-    assert cookie.options["path"] == "/"
-    assert cookie.options["max_age"] == 3600
-    assert cookie.options["same_site"] == "Lax"
-    assert cookie.options["secure"] is False
-    assert cookie.options["http_only"] is True
-    assert "secrets" not in cookie.options
-
-
-def test_cookie_initialization_with_options():
-    """Test cookie initialization with custom options."""
-    options = {
-        "path": "/api",
-        "max_age": 7200,
-        "same_site": "Strict",
-        "secure": True,
-        "http_only": False,
-        "secrets": ["secret1", "secret2"],
-    }
-    cookie = Cookie("test_cookie", options)
-    assert cookie.options["path"] == "/api"
-    assert cookie.options["max_age"] == 7200
-    assert cookie.options["same_site"] == "Strict"
-    assert cookie.options["secure"] is True
-    assert cookie.options["http_only"] is False
-    assert cookie.options["secrets"] == ["secret1", "secret2"]
-
-
-def test_cookie_initialization_with_empty_secrets():
-    """Test cookie initialization with empty secrets list."""
-    cookie = Cookie("test_cookie", {"secrets": []})
-    assert "secrets" not in cookie.options
+from webspark.http.cookie import (
+    _make_expires,
+    _sign,
+    _verify,
+    parse_cookie,
+    serialize_cookie,
+)
 
 
 def test_make_expires_with_datetime():
     """Test _make_expires with datetime object."""
     dt = datetime(2023, 12, 25, 10, 30, 45)
-    cookie = Cookie("test")
-    result = cookie._make_expires(dt)
+    result = _make_expires(dt)
     assert result == "Mon, 25-Dec-2023 10:30:45 GMT"
 
 
 def test_make_expires_with_int():
     """Test _make_expires with integer (seconds)."""
-    cookie = Cookie("test")
-    result = cookie._make_expires(3600)  # 1 hour
-    # We can't assert the exact string since it depends on current time
+    result = _make_expires(3600)
     assert isinstance(result, str)
     assert "GMT" in result
 
 
 def test_make_expires_with_invalid_type():
     """Test _make_expires with invalid type."""
-    cookie = Cookie("test")
-    with pytest.raises(ValueError, match="Date must be date or seconds"):
-        cookie._make_expires("invalid")
+    with pytest.raises(ValueError, match="Date must be datetime or int"):
+        _make_expires("invalid")
 
 
 def test_sign_and_verify():
     """Test signing and verification of cookie data."""
-    cookie = Cookie("test", {"secrets": ["secret1"]})
     data = "test_data"
-    signature = cookie._sign(data, "secret1")
+    signature = _sign(data, "secret1")
     assert isinstance(signature, str)
     assert len(signature) > 0
-    assert cookie._verify(data, signature) is True
+    assert _verify(data, signature, ["secret1"]) is True
 
 
 def test_verify_with_invalid_signature():
     """Test verification with invalid signature."""
-    cookie = Cookie("test", {"secrets": ["secret1"]})
-    data = "test_data"
-    assert cookie._verify(data, "invalid_signature") is False
+    assert _verify("test_data", "invalid_signature", ["secret1"]) is False
 
 
 def test_verify_with_multiple_secrets():
     """Test verification with multiple secrets."""
-    cookie = Cookie("test", {"secrets": ["secret1", "secret2"]})
     data = "test_data"
-    signature = cookie._sign(data, "secret2")
-    assert cookie._verify(data, signature) is True
+    signature = _sign(data, "secret2")
+    assert _verify(data, signature, ["secret1", "secret2"]) is True
 
 
 def test_serialize_without_secrets():
     """Test serialization without signing."""
-    cookie = Cookie("test_cookie")
     data = {"key": "value", "number": 42}
-    serialized = cookie.serialize(data)
+    serialized = serialize_cookie("test_cookie", data)
     assert isinstance(serialized, str)
     assert "test_cookie" in serialized
 
 
-def test_serialize_with_options():
+def test_serialize_with_custom_options():
     """Test serialization with custom options."""
-    cookie = Cookie("test_cookie")
     data = {"key": "value"}
-    serialized = cookie.serialize(data, {"max_age": 1800, "path": "/test"})
+    serialized = serialize_cookie(
+        "test_cookie",
+        data,
+        path="/test",
+        max_age=1800,
+        same_site="Strict",
+        secure=True,
+        http_only=False,
+    )
     assert "Max-Age=1800" in serialized
     assert "Path=/test" in serialized
+    assert "SameSite=Strict" in serialized
+    assert "Secure" in serialized
+    assert "HttpOnly" not in serialized
 
 
 def test_serialize_with_expires_datetime():
     """Test serialization with datetime expires."""
-    cookie = Cookie("test_cookie")
     dt = datetime(2023, 12, 25, 10, 30, 45)
-    serialized = cookie.serialize({"key": "value"}, {"expires": dt})
-    # Cookie output uses lowercase "expires"
+    serialized = serialize_cookie("test_cookie", {"key": "value"}, expires=dt)
     assert "expires=mon, 25-dec-2023 10:30:45 gmt" in serialized.lower()
 
 
 def test_serialize_with_expires_int():
     """Test serialization with integer expires."""
-    cookie = Cookie("test_cookie")
-    serialized = cookie.serialize({"key": "value"}, {"expires": 3600})
+    serialized = serialize_cookie("test_cookie", {"key": "value"}, expires=3600)
     assert "expires=" in serialized.lower()
 
 
 def test_serialize_with_secrets():
     """Test serialization with signing."""
-    cookie = Cookie("test_cookie", {"secrets": ["secret1"]})
     data = {"key": "value"}
-    serialized = cookie.serialize(data)
-    assert isinstance(serialized, str)
+    serialized = serialize_cookie("test_cookie", data, secrets=["secret1"])
     assert "test_cookie" in serialized
     # Check that the value is signed (contains a dot)
     assert "." in serialized.split("test_cookie=")[1]
@@ -141,137 +106,91 @@ def test_serialize_with_secrets():
 
 def test_parse_without_secrets():
     """Test parsing unsigned cookie."""
-    cookie = Cookie("test_cookie")
     data = {"key": "value", "number": 42}
-
-    # Create a proper cookie header using SimpleCookie
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = json.dumps(data)
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = cookie.parse(cookie_header)
-    assert parsed == data
+    parsed = parse_cookie(cookie_header)
+    assert parsed["test_cookie"] == data
 
 
 def test_parse_with_secrets():
     """Test parsing signed cookie."""
-    cookie = Cookie("test_cookie", {"secrets": ["secret1"]})
     data = {"key": "value"}
-
-    # Manually create a valid signed cookie for testing
     json_data = json.dumps(data)
-    signature = cookie._sign(json_data, "secret1")
+    signature = _sign(json_data, "secret1")
     encoded_data = base64.urlsafe_b64encode(json_data.encode()).decode()
     signed_value = f"{encoded_data}.{signature}"
 
-    # Create proper cookie header
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = signed_value
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = cookie.parse(cookie_header)
-    assert parsed == data
-
-
-def test_parse_with_invalid_cookie_name():
-    """Test parsing when cookie name doesn't match."""
-    cookie = Cookie("test_cookie")
-    # Create a cookie with a different name
-    cookie_obj = SimpleCookie()
-    cookie_obj["other_cookie"] = "value"
-    cookie_header = cookie_obj.output(header="", sep="").strip()
-
-    parsed = cookie.parse(cookie_header)
-    assert parsed is None
+    parsed = parse_cookie(cookie_header, secrets=["secret1"])
+    assert parsed["test_cookie"] == data
 
 
 def test_parse_with_invalid_json():
     """Test parsing with invalid JSON."""
-    cookie = Cookie("test_cookie")
-    # Create a cookie with invalid JSON
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = "invalid_json"
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = cookie.parse(cookie_header)
-    assert parsed is None
+    parsed = parse_cookie(cookie_header)
+    assert parsed["test_cookie"] is None
 
 
 def test_parse_with_invalid_signature():
     """Test parsing with invalid signature."""
-    cookie = Cookie("test_cookie", {"secrets": ["secret1"]})
-    # Create a cookie with invalid signature
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = "dGVzdF9kYXRh.invalid_signature"
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = cookie.parse(cookie_header)
-    assert parsed is None
+    parsed = parse_cookie(cookie_header, secrets=["secret1"])
+    assert parsed["test_cookie"] is None
 
 
 def test_parse_with_malformed_signed_cookie():
-    """Test parsing with malformed signed cookie."""
-    cookie = Cookie("test_cookie", {"secrets": ["secret1"]})
-    # Create a cookie with missing signature part
+    """Test parsing with malformed signed cookie (missing signature)."""
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = "dGVzdF9kYXRh"
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = cookie.parse(cookie_header)
-    assert parsed is None
+    parsed = parse_cookie(cookie_header, secrets=["secret1"])
+    assert parsed["test_cookie"] is None
 
 
 def test_parse_none_header():
     """Test parsing with None header."""
-    cookie = Cookie("test_cookie")
-    parsed = cookie.parse(None)
-    assert parsed is None
+    parsed = parse_cookie(None)
+    assert parsed == {}
 
 
 def test_parse_empty_header():
     """Test parsing with empty header."""
-    cookie = Cookie("test_cookie")
-    parsed = cookie.parse("")
-    assert parsed is None
+    parsed = parse_cookie("")
+    assert parsed == {}
 
 
 def test_serialize_with_multiple_secrets_random_choice():
     """Test that serialization uses random secret from list."""
     secrets = ["secret1", "secret2", "secret3"]
-    cookie = Cookie("test_cookie", {"secrets": secrets})
     data = {"key": "value"}
 
-    # Collect serialized cookies
     serialized_cookies = []
     for _ in range(10):
-        serialized = cookie.serialize(data)
-        serialized_cookies.append(serialized)
+        serialized_cookies.append(
+            serialize_cookie("test_cookie", data, secrets=secrets)
+        )
 
-    # Check that we got some cookies
-    assert len(serialized_cookies) > 0
-
-    # Parse each one back to verify it works
     for serialized in serialized_cookies:
-        parsed = cookie.parse(serialized)
-        assert parsed == data
-
-
-def test_cookie_options_override():
-    """Test that options can be overridden in serialize method."""
-    cookie = Cookie("test_cookie", {"max_age": 3600, "path": "/"})
-    data = {"key": "value"}
-    serialized = cookie.serialize(data, {"max_age": 7200, "secure": True})
-
-    # Check that override worked
-    assert "Max-Age=7200" in serialized
-    assert "Secure" in serialized
-    # Original options should be preserved if not overridden
-    assert "HttpOnly" in serialized
+        parsed = parse_cookie(serialized, secrets=secrets)
+        assert parsed["test_cookie"] == data
 
 
 def test_complex_data_serialization():
     """Test serialization of complex data structures."""
-    cookie = Cookie("test_cookie")
     complex_data = {
         "string": "value",
         "number": 42,
@@ -280,67 +199,47 @@ def test_complex_data_serialization():
         "list": [1, 2, 3],
         "nested": {"inner": "value"},
     }
-    serialized = cookie.serialize(complex_data)
-    assert isinstance(serialized, str)
-
-    # Parse it back
-    parsed = cookie.parse(serialized)
-    assert parsed == complex_data
+    serialized = serialize_cookie("test_cookie", complex_data)
+    parsed = parse_cookie(serialized)
+    assert parsed["test_cookie"] == complex_data
 
 
 def test_parse_signed_cookie_with_wrong_secret():
     """Test parsing signed cookie with wrong secret."""
-    # Create cookie with one set of secrets
-    cookie1 = Cookie("test_cookie", {"secrets": ["secret1"]})
     data = {"key": "value"}
-    serialized = cookie1.serialize(data)
+    serialized = serialize_cookie("test_cookie", data, secrets=["secret1"])
 
-    # Try to parse with different secrets
-    cookie2 = Cookie("test_cookie", {"secrets": ["different_secret"]})
-
-    # Extract just the cookie header part (remove "Set-Cookie: " prefix)
-    if serialized.startswith("Set-Cookie: "):
-        cookie_header = serialized[12:]  # Remove "Set-Cookie: " prefix
-    else:
-        cookie_header = serialized
-
-    parsed = cookie2.parse(cookie_header)
-    assert parsed is None
+    parsed = parse_cookie(serialized, secrets=["different_secret"])
+    assert parsed["test_cookie"] is None
 
 
 def test_empty_data_serialization():
     """Test serialization of empty data."""
-    cookie = Cookie("test_cookie")
-    serialized = cookie.serialize({})
-    assert isinstance(serialized, str)
+    serialized = serialize_cookie("test_cookie", {})
     assert "test_cookie" in serialized
+    parsed = parse_cookie(serialized)
+    assert parsed["test_cookie"] == {}
 
 
 def test_none_data_serialization():
     """Test serialization of None data."""
-    cookie = Cookie("test_cookie")
-    serialized = cookie.serialize(None)
-    assert isinstance(serialized, str)
+    serialized = serialize_cookie("test_cookie", None)
     assert "test_cookie" in serialized
+    parsed = parse_cookie(serialized)
+    assert parsed["test_cookie"] is None
 
 
 def test_parse_with_valid_simple_cookie():
-    """Test parsing a valid simple cookie created by Cookie class."""
-    cookie = Cookie("test_cookie")
+    """Test parsing a valid simple cookie created by serialize_cookie."""
     data = {"user_id": 123, "username": "testuser"}
-    serialized = cookie.serialize(data)
-
-    # Parse it back
-    parsed = cookie.parse(serialized)
-    assert parsed == data
+    serialized = serialize_cookie("test_cookie", data)
+    parsed = parse_cookie(serialized)
+    assert parsed["test_cookie"] == data
 
 
 def test_parse_with_valid_signed_cookie():
-    """Test parsing a valid signed cookie created by Cookie class."""
-    cookie = Cookie("test_cookie", {"secrets": ["my_secret"]})
+    """Test parsing a valid signed cookie created by serialize_cookie."""
     data = {"user_id": 123, "username": "testuser"}
-    serialized = cookie.serialize(data)
-
-    # Parse it back
-    parsed = cookie.parse(serialized)
-    assert parsed == data
+    serialized = serialize_cookie("test_cookie", data, secrets=["my_secret"])
+    parsed = parse_cookie(serialized, secrets=["my_secret"])
+    assert parsed["test_cookie"] == data

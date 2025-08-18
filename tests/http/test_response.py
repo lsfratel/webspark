@@ -50,7 +50,7 @@ def test_response_invalid_status_code():
 def test_response_set_cookie():
     """Test setting cookies on Response."""
     response = Response()
-    response.set_cookie("session_id", "abc123", {"path": "/", "max_age": 3600})
+    response.set_cookie("session_id", "abc123", path="/", max_age=3600)
 
     assert len(response._cookies) == 1
     assert "session_id" in response._cookies[0]

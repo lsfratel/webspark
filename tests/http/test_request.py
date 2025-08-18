@@ -99,15 +99,16 @@ def test_request_charset_multiple_params():
 
 
 def test_request_cookies():
-    environ = {"HTTP_COOKIE": "a=1; b=2"}
+    app = ApplicationMock()
+    environ = {"HTTP_COOKIE": "a=1; b=2", "webspark.instance": app}
     request = Request(environ)
-    assert request.cookies == {"a": "1", "b": "2"}
+    assert request.get_cookies() == {"a": 1, "b": 2}
 
 
 def test_request_cookies_empty():
     environ = {}
     request = Request(environ)
-    assert request.cookies == {}
+    assert request.get_cookies() == {}
 
 
 def test_request_body_json():

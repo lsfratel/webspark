@@ -9,7 +9,7 @@ This example demonstrates:
 import time
 
 from webspark.core import View, WebSpark, path
-from webspark.http import HTMLResponse, JsonResponse
+from webspark.http import HTMLResponse, JsonResponse, Request
 from webspark.utils import HTTPException
 
 # Simple in-memory session store
@@ -17,9 +17,9 @@ sessions = {}
 
 
 class HomeView(View):
-    def handle_get(self, request):
+    def handle_get(self, request: Request):
         # Check if user has a session
-        session_id = request.cookies.get("session_id")
+        session_id = request.get_cookies().get("session_id")
         user_data = sessions.get(session_id) if session_id else None
 
         if user_data:
@@ -81,7 +81,7 @@ class HomeView(View):
 
 
 class LoginView(View):
-    def handle_post(self, request):
+    def handle_post(self, request: Request):
         # In a real app, you would validate credentials
         username = request.body.get("username", "") if request.body else ""
         password = request.body.get("password", "") if request.body else ""
@@ -121,21 +121,19 @@ class LoginView(View):
         response.set_cookie(
             "session_id",
             session_id,
-            {
-                "path": "/",
-                "max_age": 3600,  # 1 hour
-                "httponly": True,
-                "secure": False,  # Set to True in production with HTTPS
-            },
+            path="/",
+            max_age=3600,
+            http_only=True,
+            secure=request.is_secure,
         )
 
         return response
 
 
 class LogoutView(View):
-    def handle_post(self, request):
+    def handle_post(self, request: Request):
         # Clear session
-        session_id = request.cookies.get("session_id")
+        session_id = request.get_cookies().get("session_id")
         if session_id and session_id in sessions:
             del sessions[session_id]
 
@@ -165,8 +163,8 @@ class LogoutView(View):
 
 
 class SessionInfoView(View):
-    def handle_get(self, request):
-        session_id = request.cookies.get("session_id")
+    def handle_get(self, request: Request):
+        session_id = request.get_cookies().get("session_id")
         user_data = sessions.get(session_id) if session_id else None
 
         return JsonResponse(

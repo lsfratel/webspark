@@ -200,12 +200,7 @@ class AuthView(View):
     def handle_post(self, request):
         # Set a cookie on login
         response = JsonResponse({"logged_in": True})
-        response.set_cookie("session_id", "abc123", {
-            "path": "/",
-            "max_age": 3600,  # 1 hour
-            "httponly": True,
-            "secure": True,   # Use only with HTTPS
-        })
+        response.set_cookie("session_id", "abc123", path="/", max_age=3600, httponly=True, secure=True)
         return response
 
     def handle_delete(self, request):

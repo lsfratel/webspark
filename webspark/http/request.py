@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 from ..constants import BODY_METHODS
 from ..utils import HTTPException, cached_property, deserialize_json
+from .cookie import parse_cookie
 from .multipart import MultipartParser
 
 _SUPPORTED_CONTENT_TYPES = frozenset(
@@ -120,6 +121,21 @@ class Request:
                 return False
 
         return True
+
+    def get_cookies(self, secrets: list[str] | None = None):
+        """Parse and return cookies from the request.
+
+        Args:
+            secrets: Optional list of secret keys for signed cookie verification.
+
+        Returns:
+            dict: Parsed cookies as key-value pairs.
+        """
+        cookie_header = self.headers.get("cookie", "")
+        if not cookie_header:
+            return {}
+
+        return parse_cookie(cookie_header, secrets)
 
     @property
     def view_instance(self) -> View:
@@ -341,24 +357,6 @@ class Request:
                     return (v.strip().strip('"').strip("'") or "utf-8").lower()
 
         return "utf-8"
-
-    @cached_property
-    def cookies(self) -> dict[str, Any]:
-        """Get parsed cookies from the request.
-
-        Returns:
-            dict: Dictionary of cookies.
-        """
-        cookie_header = self.ENV.get("HTTP_COOKIE", "")
-        if not cookie_header:
-            return {}
-
-        cookies = {}
-        for chunk in cookie_header.split(";"):
-            if "=" in chunk:
-                key, val = chunk.split("=", 1)
-                cookies[key.strip()] = val.strip()
-        return cookies
 
     @cached_property
     def ip(self) -> str:

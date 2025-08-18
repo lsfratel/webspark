@@ -1,4 +1,3 @@
-from .cookie import Cookie
 from .multipart import MultipartParser
 from .request import Request
 from .response import (
@@ -11,7 +10,6 @@ from .response import (
 )
 
 __all__ = [
-    "Cookie",
     "Request",
     "Response",
     "JsonResponse",

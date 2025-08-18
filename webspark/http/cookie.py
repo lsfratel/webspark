@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import base64
 import hashlib
 import hmac
@@ -11,181 +9,153 @@ from typing import Any
 from ..utils.json import deserialize_json, serialize_json
 
 
-class Cookie:
-    """HTTP Cookie handling with optional signing support.
-
-    This class provides functionality for serializing and parsing HTTP cookies
-    with optional cryptographic signing to prevent tampering. It supports both
-    simple JSON serialization and signed cookies for secure data storage.
-
-    Example:
-        # Create a simple cookie
-        cookie = Cookie("session_id")
-        serialized = cookie.serialize({"user_id": 123})
-
-        # Create a signed cookie
-        cookie = Cookie("auth_token", {"secrets": ["secret_key"]})
-        serialized = cookie.serialize({"user_id": 123, "role": "admin"})
-
-        # Parse a cookie
-        data = cookie.parse(serialized)
-
-    Attributes:
-        name (str): The name of the cookie.
-        options (dict): Configuration options for the cookie.
+def _make_expires(date: datetime | int) -> str:
     """
+    Convert a datetime or int to a cookie expires string format.
 
-    def __init__(self, name: str, options: dict[str, Any] | None = None):
-        """Initialize a Cookie handler.
+    Args:
+        date: Either a datetime object or an int representing seconds from now
 
-        Args:
-            name: The name of the cookie.
-            options: Configuration options for the cookie. Available options:
-                - path (str): Cookie path (default: "/")
-                - max_age (int): Cookie max age in seconds (default: 3600)
-                - same_site (str): SameSite policy (default: "Lax")
-                - secrets (list): List of secret keys for signing (default: [])
-                - secure (bool): Secure flag (default: False)
-                - http_only (bool): HttpOnly flag (default: True)
-        """
-        self.name = name
-        options = options or {}
-        self.options = {
-            "path": "/",
-            "max_age": 3600,
-            "same_site": "Lax",
-            "secrets": [],
-            "secure": False,
-            "http_only": True,
-            **options,
-        }
-        if "secrets" in self.options:
-            if len(self.options["secrets"]) == 0:
-                del self.options["secrets"]
+    Returns:
+        A formatted string suitable for cookie expires attribute
 
-    @staticmethod
-    def _make_expires(date: datetime | int):
-        """Convert datetime or seconds to HTTP cookie expiration format.
-
-        Args:
-            date: Either a datetime object or seconds from now.
-
-        Returns:
-            str: Formatted expiration date string.
-
-        Raises:
-            ValueError: If date is neither datetime nor int.
-        """
-        if isinstance(date, datetime):
-            return date.strftime("%a, %d-%b-%Y %H:%M:%S GMT")
-        elif isinstance(date, int):
-            return (datetime.now() + timedelta(seconds=date)).strftime(
-                "%a, %d-%b-%Y %H:%M:%S GMT"
-            )
-        else:
-            raise ValueError("Date must be date or seconds")
-
-    def _sign(self, data: str, secret: str):
-        """Sign data using HMAC-SHA256.
-
-        Args:
-            data: The data to sign.
-            secret: The secret key for signing.
-
-        Returns:
-            str: Base64-encoded signature.
-        """
-        signature = hmac.new(secret.encode(), data.encode(), hashlib.sha256).digest()
-        return base64.urlsafe_b64encode(signature).decode()
-
-    def _verify(self, data: str, signature: str):
-        """Verify data signature against available secrets.
-
-        Args:
-            data: The data to verify.
-            signature: The signature to check against.
-
-        Returns:
-            bool: True if signature is valid, False otherwise.
-        """
-        for secret in self.options["secrets"]:
-            expected_signature = self._sign(data, secret)
-            if hmac.compare_digest(expected_signature, signature):
-                return True
-        return False
-
-    def serialize(self, data: Any, overrides: dict[str, Any] | None = None):
-        """Serialize data into an HTTP cookie string.
-
-        Args:
-            data: The data to serialize into the cookie.
-            overrides: Optional dictionary of options to override defaults.
-
-        Returns:
-            str: Serialized cookie string ready for HTTP headers.
-
-        Example:
-            cookie = Cookie("session")
-            serialized = cookie.serialize({"user_id": 123})
-        """
-        options = {**self.options, **(overrides or {})}
-        new_data = serialize_json(data).decode(
-            "utf-8"
+    Raises:
+        ValueError: If date is neither datetime nor int
+    """
+    if isinstance(date, datetime):
+        return date.strftime("%a, %d-%b-%Y %H:%M:%S GMT")
+    elif isinstance(date, int):
+        return (datetime.now() + timedelta(seconds=date)).strftime(
+            "%a, %d-%b-%Y %H:%M:%S GMT"
         )
+    raise ValueError("Date must be datetime or int")
 
-        if "secrets" in options and len(options["secrets"]) > 0:
-            signature = self._sign(new_data, random.choice(options["secrets"]))
-            new_data = base64.urlsafe_b64encode(new_data.encode()).decode()
-            new_data = f"{new_data}.{signature}"
 
-        cookie = SimpleCookie()
-        cookie[self.name] = new_data
+def _sign(data: str, secret: str) -> str:
+    """
+    Create an HMAC signature for the given data using the provided secret.
 
-        if options.get("expires"):
-            cookie[self.name]["Expires"] = self._make_expires(options["expires"])
-        if options.get("max_age"):
-            cookie[self.name]["Max-Age"] = options["max_age"]
-        if options.get("path"):
-            cookie[self.name]["Path"] = options["path"]
-        if options.get("http_only"):
-            cookie[self.name]["HttpOnly"] = options["http_only"]
-        if options.get("secure"):
-            cookie[self.name]["Secure"] = options["secure"]
-        if options.get("same_site"):
-            cookie[self.name]["SameSite"] = options["same_site"]
+    Args:
+        data: The data to sign
+        secret: The secret key to use for signing
 
-        return cookie.output(header="", sep="").strip()
+    Returns:
+        A base64-encoded signature string
+    """
+    signature = hmac.new(secret.encode(), data.encode(), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(signature).decode()
 
-    def parse(self, header: str | None):
-        """Parse a cookie header string and extract data.
 
-        Args:
-            header: The cookie header string to parse.
+def _verify(data: str, signature: str, secrets: list[str]) -> bool:
+    """
+    Verify an HMAC signature against a list of possible secrets.
 
-        Returns:
-            Any: The deserialized data, or None if parsing fails or cookie not found.
+    Args:
+        data: The original data that was signed
+        signature: The signature to verify
+        secrets: List of possible secret keys to try
 
-        Example:
-            cookie = Cookie("session")
-            data = cookie.parse("session=session_data; Path=/; HttpOnly")
-        """
-        cookie = SimpleCookie(header)
-        if self.name not in cookie:
-            return None
+    Returns:
+        True if the signature is valid for any of the secrets, False otherwise
+    """
+    for secret in secrets:
+        expected_signature = _sign(data, secret)
+        if hmac.compare_digest(expected_signature, signature):
+            return True
+    return False
 
-        cookie_value = cookie[self.name].value
 
-        if "secrets" not in self.options:
+def serialize_cookie(
+    name: str,
+    data: Any,
+    *,
+    path: str = "/",
+    max_age: int = 3600,
+    same_site: str = "Lax",
+    secrets: list[str] | None = None,
+    secure: bool = False,
+    http_only: bool = True,
+    expires: datetime | int | None = None,
+) -> str:
+    """
+    Serialize data into a signed cookie string.
+
+    Args:
+        name: The cookie name
+        data: The data to serialize (will be JSON-encoded)
+        path: Cookie path attribute (default: "/")
+        max_age: Cookie max-age in seconds (default: 3600)
+        same_site: SameSite attribute (default: "Lax")
+        secrets: List of secret keys for signing (optional)
+        secure: Whether to set Secure flag (default: False)
+        http_only: Whether to set HttpOnly flag (default: True)
+        expires: Expiration date as datetime or seconds from now (optional)
+
+    Returns:
+        A formatted cookie string ready for Set-Cookie header
+    """
+    serialized_data = serialize_json(data).decode("utf-8")
+
+    if secrets:
+        signature = _sign(serialized_data, random.choice(secrets))
+        serialized_data = base64.urlsafe_b64encode(serialized_data.encode()).decode()
+        serialized_data = f"{serialized_data}.{signature}"
+
+    cookie = SimpleCookie()
+    cookie[name] = serialized_data
+
+    if expires:
+        cookie[name]["Expires"] = _make_expires(expires)
+    if max_age:
+        cookie[name]["Max-Age"] = max_age
+    if path:
+        cookie[name]["Path"] = path
+    if http_only:
+        cookie[name]["HttpOnly"] = http_only
+    if secure:
+        cookie[name]["Secure"] = secure
+    if same_site:
+        cookie[name]["SameSite"] = same_site
+
+    return cookie.output(header="", sep="").strip()
+
+
+def parse_cookie(
+    header: str | None,
+    secrets: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Parse cookies from a Cookie header string.
+
+    Args:
+        header: The Cookie header value to parse
+        secrets: List of secret keys for verifying signed cookies (optional)
+
+    Returns:
+        A dictionary mapping cookie names to their deserialized values.
+        Invalid or tampered cookies will have None as their value.
+    """
+    cookie = SimpleCookie(header)
+    parsed: dict[str, Any] = {}
+
+    for name, morsel in cookie.items():
+        value = morsel.value
+
+        if not secrets:
             try:
-                return deserialize_json(cookie_value)
+                parsed[name] = deserialize_json(value)
             except Exception:
-                return None
+                parsed[name] = None
+            continue
 
         try:
-            data, signature = cookie_value.rsplit(".", 1)
+            data, signature = value.rsplit(".", 1)
             data = base64.urlsafe_b64decode(data).decode()
-            if not self._verify(data, signature):
-                return None
-            return deserialize_json(data)
+            if _verify(data, signature, secrets):
+                parsed[name] = deserialize_json(data)
+            else:
+                parsed[name] = None
         except Exception:
-            return None
+            parsed[name] = None
+
+    return parsed

@@ -1,9 +1,10 @@
 import mimetypes
 import os
+from datetime import datetime
 from typing import Any
 
 from ..constants import STATUS_CODE
-from ..http.cookie import Cookie
+from ..http.cookie import serialize_cookie
 from ..utils import cached_property, serialize_json
 
 
@@ -73,32 +74,37 @@ class Response:
     def set_cookie(
         self,
         name: str,
-        value: Any,
-        options: dict[str, Any] | None = None,
-        overrides: dict[str, Any] | None = None,
+        data: Any,
+        *,
+        path: str = "/",
+        max_age: int = 3600,
+        same_site: str = "Lax",
+        secrets: list[str] | None = None,
+        secure: bool = False,
+        http_only: bool = True,
+        expires: datetime | int | None = None,
     ):
-        """Set a cookie in the response.
+        self._cookies.append(
+            serialize_cookie(
+                name,
+                data,
+                path=path,
+                max_age=max_age,
+                same_site=same_site,
+                secrets=secrets,
+                secure=secure,
+                http_only=http_only,
+                expires=expires,
+            )
+        )
 
-        Args:
-            name: Cookie name.
-            value: Cookie value.
-            options: Cookie options (see Cookie class for available options).
-            overrides: Options that override default cookie options.
-        """
-        cookie = Cookie(name, options)
-        self._cookies.append(cookie.serialize(value, overrides))
-
-    def delete_cookie(self, name: str, options: dict[str, Any] | None = None):
+    def delete_cookie(self, name: str):
         """Delete a cookie by setting its expiration to the past.
 
         Args:
             name: Name of the cookie to delete.
-            options: Additional cookie options.
         """
-        options = options or {}
-        options["max_age"] = -1
-        options["expires"] = 0
-        self.set_cookie(name, "", options)
+        self.set_cookie(name, "", max_age=-1, expires=0)
 
     def set_header(self, name: str, value: str):
         """Set a response header.
