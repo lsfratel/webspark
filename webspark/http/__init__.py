@@ -7,6 +7,7 @@ from .response import (
     Response,
     StreamResponse,
     SuccessResponse,
+    TextResponse,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "MultipartParser",
     "StreamResponse",
     "SuccessResponse",
+    "TextResponse",
 ]

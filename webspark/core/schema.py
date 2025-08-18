@@ -253,6 +253,7 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
             initial_data = self.validate(self.initial_data)
         except HTTPException as e:
             self._errors = e.details
+            self._validated_data = validated_data
             return False
 
         for field_name, field in self.fields.items():
@@ -272,6 +273,7 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
 
         if errors:
             self._errors = errors
+            self._validated_data = validated_data
             return False
 
         self._validated_data = validated_data
