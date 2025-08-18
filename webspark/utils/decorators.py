@@ -1,4 +1,10 @@
-class cached_property:
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
+
+T = TypeVar("T")
+
+
+class cached_property(Generic[T]):
     """A property decorator that caches the return value of a method.
 
     The method's result is computed once and then cached as a property of the instance.
@@ -22,7 +28,7 @@ class cached_property:
         __doc__: The docstring of the property.
     """
 
-    def __init__(self, func, name=None, doc=None):
+    def __init__(self, func: Callable[..., T]):
         """Initialize the cached_property decorator.
 
         Args:
@@ -30,12 +36,12 @@ class cached_property:
             name: Optional name for the property. If not provided, uses function's name.
             doc: Optional docstring. If not provided, uses function's docstring.
         """
-        self.__name__ = name or func.__name__
-        self.__module__ = func.__module__
-        self.__doc__ = doc or func.__doc__
         self.func = func
+        self.__name__ = func.__name__
+        self.__module__ = func.__module__
+        self.__doc__ = func.__doc__
 
-    def __get__(self, obj, _=None):
+    def __get__(self, obj: Any, _: Any = None) -> T:
         """Get the cached property value.
 
         Args:
