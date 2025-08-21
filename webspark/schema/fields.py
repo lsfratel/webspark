@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -92,12 +92,16 @@ class BaseField:
 class IntegerField(BaseField):
     default_error_messages = {
         "invalid": "Value must be an integer.",
+        "min_value": "Value must be at least {min_value}.",
+        "max_value": "Value must be at most {max_value}.",
     }
 
     def __init__(self, min_value: int = None, max_value: int = None, **kwargs):
         super().__init__(**kwargs)
+
         if min_value is not None:
             self.validators.append(helpers.min_value_validator(min_value))
+
         if max_value is not None:
             self.validators.append(helpers.max_value_validator(max_value))
 
@@ -111,12 +115,16 @@ class IntegerField(BaseField):
 class FloatField(BaseField):
     default_error_messages = {
         "invalid": "Value must be a float.",
+        "min_value": "Value must be at least {min_value}.",
+        "max_value": "Value must be at most {max_value}.",
     }
 
     def __init__(self, min_value: float = None, max_value: float = None, **kwargs):
         super().__init__(**kwargs)
+
         if min_value is not None:
             self.validators.append(helpers.min_value_validator(min_value))
+
         if max_value is not None:
             self.validators.append(helpers.max_value_validator(max_value))
 
@@ -130,12 +138,16 @@ class FloatField(BaseField):
 class StringField(BaseField):
     default_error_messages = {
         "invalid": "Value must be a string.",
+        "min_length": "Value must be at least {min_length} characters long.",
+        "max_length": "Value must be at most {max_length} characters long.",
     }
 
     def __init__(self, min_length: int = None, max_length: int = None, **kwargs):
         super().__init__(**kwargs)
+
         if min_length is not None:
             self.validators.append(helpers.min_length_validator(min_length))
+
         if max_length is not None:
             self.validators.append(helpers.max_length_validator(max_length))
 
@@ -170,6 +182,8 @@ class BooleanField(BaseField):
 class ListField(BaseField):
     default_error_messages = {
         "invalid": "Value must be a list.",
+        "min_items": "Value must have at least {min_items} items.",
+        "max_items": "Value must have at most {max_items} items.",
     }
 
     def __init__(
@@ -193,13 +207,10 @@ class ListField(BaseField):
         value = super().validate(value, data)
 
         if self.min_items is not None and len(value) < self.min_items:
-            raise HTTPException(
-                {self.name: [f"Must have at least {self.min_items} items."]}, 400
-            )
+            self.fail("min_items", min_items=self.min_items)
+
         if self.max_items is not None and len(value) > self.max_items:
-            raise HTTPException(
-                {self.name: [f"Must have at most {self.max_items} items."]}, 400
-            )
+            self.fail("max_items", max_items=self.max_items)
 
         if self.child:
             validated = []
@@ -297,8 +308,7 @@ class DateTimeField(BaseField):
 
     def validate(self, value: Any, data: Any) -> datetime:
         if self.auto_now or (self.auto_now_add and value is UNDEFINED):
-            # sempre agora; ignora valor de entrada
-            return datetime.now()
+            return datetime.now(tz=timezone.utc)
 
         if value is UNDEFINED:
             return super().validate(value, data)
@@ -353,7 +363,6 @@ class EnumField(BaseField):
             self.choices = list(enum)
 
     def to_python(self, value: Any) -> Any:
-        # só valida a presença nos choices aqui; conversão p/ Enum (se houver) depois
         if value not in self.choices:
             self.fail("invalid_choice", choices=self.choices)
         return self.enum_type(value) if self.enum_type else value
@@ -395,35 +404,23 @@ class RegexField(StringField):
         "pattern": "Value does not match the required pattern.",
     }
 
-    def __init__(self, pattern: str, flags: int = 0, **kwargs):
+    def __init__(
+        self, pattern: str, flags: re.RegexFlag = 0, full_match=False, **kwargs
+    ):
         super().__init__(**kwargs)
-        self.pattern = re.compile(pattern, flags)
 
-        def _pattern_validator(val, field):
-            if not self.pattern.fullmatch(val):
-                raise HTTPException({field.name: [self.error_messages["pattern"]]}, 400)
-            return val
-
-        self.validators.append(_pattern_validator)
+        self.validators.append(
+            helpers.regex_pattern_validator(pattern, flags, full_match)
+        )
 
 
-class EmailField(StringField):
+class EmailField(RegexField):
     default_error_messages = {
-        "invalid_email": "Value must be a valid email address.",
+        "pattern": "Value must be a valid email address.",
     }
-    EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+")
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        def _email_validator(val, field):
-            if not self.EMAIL_REGEX.fullmatch(val):
-                raise HTTPException(
-                    {field.name: [self.error_messages["invalid_email"]]}, 400
-                )
-            return val
-
-        self.validators.append(_email_validator)
+        super().__init__(pattern=r"[^@]+@[^@]+\.[^@]+", full_match=True, **kwargs)
 
 
 class MethodField(BaseField):

@@ -307,7 +307,7 @@ def test_integer_field_validate_min_value():
     with pytest.raises(HTTPException) as exc_info:
         field.validate(10, {})
 
-    assert "Must be at least 18" in exc_info.value.details["age"][0]
+    assert "Value must be at least 18." in exc_info.value.details["age"][0]
 
 
 def test_integer_field_validate_max_value():
@@ -320,7 +320,7 @@ def test_integer_field_validate_max_value():
     with pytest.raises(HTTPException) as exc_info:
         field.validate(150, {})
 
-    assert "Must be at most 100" in exc_info.value.details["age"][0]
+    assert "Value must be at most 100." in exc_info.value.details["age"][0]
 
 
 def test_float_field_validate():
@@ -356,7 +356,7 @@ def test_float_field_validate_min_value():
     with pytest.raises(HTTPException) as exc_info:
         field.validate(-5.0, {})
 
-    assert "Must be at least 0.0" in exc_info.value.details["price"][0]
+    assert "Value must be at least 0.0." in exc_info.value.details["price"][0]
 
 
 def test_float_field_validate_max_value():
@@ -369,7 +369,7 @@ def test_float_field_validate_max_value():
     with pytest.raises(HTTPException) as exc_info:
         field.validate(150.0, {})
 
-    assert "Must be at most 100.0" in exc_info.value.details["price"][0]
+    assert "Value must be at most 100.0." in exc_info.value.details["price"][0]
 
 
 def test_string_field_validate():
@@ -402,7 +402,9 @@ def test_string_field_validate_min_length():
     with pytest.raises(HTTPException) as exc_info:
         field.validate("Jo", {})
 
-    assert "Cannot be shorter than 3 characters" in exc_info.value.details["name"][0]
+    assert (
+        "Value must be at least 3 characters long." in exc_info.value.details["name"][0]
+    )
 
 
 def test_string_field_validate_max_length():
@@ -414,7 +416,10 @@ def test_string_field_validate_max_length():
 
     with pytest.raises(HTTPException) as exc_info:
         field.validate("John Doe", {})
-    assert "Cannot be longer than 5 characters" in exc_info.value.details["name"][0]
+
+    assert (
+        "Value must be at most 5 characters long." in exc_info.value.details["name"][0]
+    )
 
 
 def test_boolean_field_validate():
@@ -490,7 +495,7 @@ def test_list_field_validate_min_items():
     with pytest.raises(HTTPException) as exc_info:
         field.validate([1], {})
 
-    assert "Must have at least 2 items" in exc_info.value.details["items"][0]
+    assert "Value must have at least 2 items." in exc_info.value.details["items"][0]
 
 
 def test_list_field_validate_max_items():
@@ -503,7 +508,7 @@ def test_list_field_validate_max_items():
     with pytest.raises(HTTPException) as exc_info:
         field.validate([1, 2, 3, 4], {})
 
-    assert "Must have at most 3 items" in exc_info.value.details["items"][0]
+    assert "Value must have at most 3 items." in exc_info.value.details["items"][0]
 
 
 def test_list_field_validate_with_child_field():
