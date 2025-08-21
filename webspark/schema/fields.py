@@ -20,6 +20,8 @@ from . import helpers
 
 
 class BaseField:
+    """Base class for all schema fields, handling validation, conversion, and representation."""
+
     default_error_messages = {
         "required": "This field is required.",
         "invalid": "Invalid value.",
@@ -28,6 +30,16 @@ class BaseField:
 
     @classmethod
     def get_default_error_messages(cls):
+        """
+        Collect and merge default error messages from the class hierarchy.
+
+        Traverses the method resolution order (MRO) from base classes to the
+        most-derived class, merging any 'default_error_messages' dicts found.
+        Later classes in the MRO override keys from earlier ones.
+
+        Returns:
+            dict: Combined default error messages for this field class.
+        """
         messages = {}
         for c in reversed(cls.__mro__):
             if hasattr(c, "default_error_messages"):
@@ -90,6 +102,8 @@ class BaseField:
 
 
 class IntegerField(BaseField):
+    """Field for integer values with optional min/max constraints."""
+
     default_error_messages = {
         "invalid": "Value must be an integer.",
         "min_value": "Value must be at least {min_value}.",
@@ -113,6 +127,8 @@ class IntegerField(BaseField):
 
 
 class FloatField(BaseField):
+    """Field for float values with optional min/max constraints."""
+
     default_error_messages = {
         "invalid": "Value must be a float.",
         "min_value": "Value must be at least {min_value}.",
@@ -136,6 +152,8 @@ class FloatField(BaseField):
 
 
 class StringField(BaseField):
+    """Field for string values with optional length constraints."""
+
     default_error_messages = {
         "invalid": "Value must be a string.",
         "min_length": "Value must be at least {min_length} characters long.",
@@ -158,6 +176,8 @@ class StringField(BaseField):
 
 
 class BooleanField(BaseField):
+    """Field for boolean values with support for common truthy/falsey strings."""
+
     default_error_messages = {
         "invalid": "Value must be boolean.",
     }
@@ -180,6 +200,8 @@ class BooleanField(BaseField):
 
 
 class ListField(BaseField):
+    """Field representing a list with optional child field validation and size constraints."""
+
     default_error_messages = {
         "invalid": "Value must be a list.",
         "min_items": "Value must have at least {min_items} items.",
@@ -289,6 +311,8 @@ class SerializerField(BaseField):
 
 
 class DateTimeField(BaseField):
+    """Field for ISO 8601 datetime values with optional auto_now/auto_now_add behavior."""
+
     default_error_messages = {
         "invalid": "Value must be a valid ISO 8601 datetime string.",
     }
@@ -317,6 +341,8 @@ class DateTimeField(BaseField):
 
 
 class UUIDField(BaseField):
+    """Field for UUID values."""
+
     default_error_messages = {
         "invalid": "Value must be a valid UUID.",
     }
@@ -329,6 +355,8 @@ class UUIDField(BaseField):
 
 
 class URLField(StringField):
+    """Field for URL strings with optional scheme restrictions."""
+
     default_error_messages = {
         "invalid": "Value must be a valid URL.",
         "scheme": "Invalid URL scheme. Allowed schemes are: {schemes}.",
@@ -349,6 +377,8 @@ class URLField(StringField):
 
 
 class EnumField(BaseField):
+    """Field that restricts values to a fixed set (enum or list of choices)."""
+
     default_error_messages = {
         "invalid_choice": "Value must be one of: {choices}.",
     }
@@ -369,6 +399,8 @@ class EnumField(BaseField):
 
 
 class DecimalField(BaseField):
+    """Field for Decimal values with optional precision and scale limits."""
+
     default_error_messages = {
         "invalid": "Value must be a valid decimal number.",
         "max_digits": "Must have at most {max_digits} digits.",
@@ -400,6 +432,8 @@ class DecimalField(BaseField):
 
 
 class RegexField(StringField):
+    """Field for strings validated against a regular expression pattern."""
+
     default_error_messages = {
         "pattern": "Value does not match the required pattern.",
     }
@@ -415,6 +449,8 @@ class RegexField(StringField):
 
 
 class EmailField(RegexField):
+    """Field for email addresses."""
+
     default_error_messages = {
         "pattern": "Value must be a valid email address.",
     }
@@ -424,6 +460,8 @@ class EmailField(RegexField):
 
 
 class MethodField(BaseField):
+    """Field whose value is computed by calling a method on the schema."""
+
     default_error_messages = {
         "missing_method": "'{method}' is not a callable method on '{schema}'.",
     }
