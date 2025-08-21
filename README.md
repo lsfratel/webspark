@@ -1,6 +1,6 @@
 # WebSpark ✨
 
-**A lightweight, minimalist Python web framework for building blazing-fast WSGI applications and APIs.**
+**A lightweight, minimalist Python web framework for building WSGI applications and APIs.**
 
 [![Code Coverage](https://img.shields.io/codecov/c/github/lsfratel/webspark?style=for-the-badge)](https://codecov.io/gh/lsfratel/webspark)
 [![License](https://img.shields.io/github/license/lsfratel/webspark?style=for-the-badge)](https://github.com/lsfratel/webspark/blob/main/LICENSE)

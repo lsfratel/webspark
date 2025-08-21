@@ -1,11 +1,13 @@
 import mimetypes
 import os
+import time
 from datetime import datetime
+from email.utils import formatdate
 from typing import Any
 
 from ..constants import STATUS_CODE
 from ..http.cookie import serialize_cookie
-from ..utils import cached_property, serialize_json
+from ..utils import HTTPException, cached_property, serialize_json
 
 
 class Response:
@@ -291,10 +293,8 @@ class RedirectResponse(Response):
     def __init__(
         self,
         url: str,
-        body: Any = b"",
         permanent: bool = False,
         headers: dict[str, str] | None = None,
-        content_type: str | None = None,
     ):
         """Initialize a RedirectResponse.
 
@@ -306,7 +306,7 @@ class RedirectResponse(Response):
         """
         status = 301 if permanent else 302
         headers = {**(headers or {}), "Location": url}
-        super().__init__(body, status, headers, content_type)
+        super().__init__(b"", status, headers, None)
 
 
 class StreamResponse(Response):
@@ -333,6 +333,7 @@ class StreamResponse(Response):
         headers: dict[str, str] | None = None,
         content_type: str | None = None,
         chunk_size: int = 4096,
+        download: str | None = None,
     ):
         """Initialize a StreamResponse.
 
@@ -342,39 +343,50 @@ class StreamResponse(Response):
             headers: Additional headers.
             content_type: Content-Type header.
             chunk_size: Size of chunks for file streaming (default: 4096).
+            download: Name of attachment file for download (optional).
         """
         self.chunk_size = chunk_size
         self.content_type = content_type
+        headers = headers or {}
 
-        if isinstance(content, str | os.PathLike):
-            self.file_path = str(content)
-            content_type = (
-                content_type
-                or mimetypes.guess_type(self.file_path)[0]
-                or "application/octet-stream"
-            )
-            super().__init__(self.file_iterator(), status, headers, content_type)
-            self.set_content_length()
-        elif isinstance(content, bytes):
+        if isinstance(content, bytes):
             content_type = content_type or "application/octet-stream"
+            headers["content-length"] = str(len(content))
             super().__init__([content], status, headers, content_type)
-            self.headers["content-length"] = str(len(content))
+        elif isinstance(content, str | os.PathLike):
+            if not os.path.exists(content) or not os.path.isfile(content):
+                raise HTTPException("File does not exist.", status_code=404)
+            if not os.access(content, os.R_OK):
+                raise HTTPException(
+                    "You do not have permission to access this file.", status_code=403
+                )
+            self.file_path = content
+            if content_type:
+                headers["content-type"] = content_type
+            else:
+                content_type, encoding = mimetypes.guess_type(content)
+                if encoding == "gzip":
+                    content_type = "application/gzip"
+                elif encoding:
+                    content_type = f"application/x-{encoding}"
+            if content_type and "charset=" not in content_type:
+                if (
+                    content_type.startswith("text/")
+                    or content_type == "application/javascript"
+                ):
+                    content_type += "; charset=utf-8"
+
+            content_type = content_type or "application/octet-stream"
+            stats = os.stat(content)
+            headers["content-length"] = str(stats.st_size)
+            headers["last-modified"] = formatdate(stats.st_mtime, usegmt=True)
+            headers["date"] = formatdate(time.time(), usegmt=True)
+            if download:
+                headers["content-disposition"] = f'attachment; filename="{download}"'
+            super().__init__(self.file_iterator(), status, headers, content_type)
         else:
             content_type = content_type or "application/octet-stream"
             super().__init__(content, status, headers, content_type)
-
-    def set_content_length(self):
-        """Set the Content-Length header based on file size.
-
-        This method attempts to determine the file size and set the appropriate
-        Content-Length header. It silently ignores errors if the file doesn't exist
-        or cannot be accessed.
-        """
-        try:
-            file_size = os.path.getsize(self.file_path)
-            self.headers["content-length"] = str(file_size)
-        except (AttributeError, OSError):
-            pass
 
     def file_iterator(self):
         """Iterator that yields file content in chunks.

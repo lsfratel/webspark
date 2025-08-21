@@ -12,6 +12,7 @@ from webspark.http.response import (
     SuccessResponse,
     TextResponse,
 )
+from webspark.utils.exceptions import HTTPException
 
 
 def test_response_initialization():
@@ -261,31 +262,26 @@ def test_stream_response_with_bytes():
     assert response.headers["content-length"] == "12"
 
 
-def test_stream_response_with_string():
-    """Test StreamResponse with string content."""
-    content = "file content"
-    response = StreamResponse(content, status=200)
+def test_stream_response_with_string_dont_exists():
+    """Test StreamResponse with string content that does not exist."""
+    content = "nonexistent_file"
 
-    assert response.file_path == content
-    assert response.headers["content-type"] == "application/octet-stream"
+    with pytest.raises(HTTPException):
+        _ = StreamResponse(content, status=200)
 
-
-def test_stream_response_with_pathlike():
-    """Test StreamResponse with PathLike content."""
+def test_stream_response_with_pathlike_dont_exists():
+    """Test StreamResponse with PathLike content that does not exist."""
     from pathlib import Path
 
     content = Path("/tmp/test.txt")
-    with patch("mimetypes.guess_type", return_value=(None, None)):
-        response = StreamResponse(content, status=200)
-
-    assert response.file_path == str(content)
-    assert response.headers["content-type"] == "application/octet-stream"
+    with pytest.raises(HTTPException):
+        _ = StreamResponse(content, status=200)
 
 
 @patch("builtins.open", new_callable=mock_open, read_data=b"chunk1chunk2")
 def test_stream_response_file_iterator(mock_file):
     """Test StreamResponse file_iterator method."""
-    response = StreamResponse("/tmp/test.txt", status=200, chunk_size=6)
+    response = StreamResponse("tests/http/test_cookie.py", status=200, chunk_size=6)
 
     chunks = list(response.file_iterator())
 
@@ -302,29 +298,6 @@ def test_stream_response_as_wsgi():
 
     assert status_str == "200 OK"
     assert body_iter == [content]
-
-
-@patch("os.path.getsize")
-def test_stream_response_set_content_length(mock_getsize):
-    """Test StreamResponse set_content_length method."""
-    mock_getsize.return_value = 1024
-
-    response = StreamResponse("/tmp/test.txt", status=200)
-    response.set_content_length()
-
-    assert response.headers["content-length"] == "1024"
-
-
-@patch("os.path.getsize")
-def test_stream_response_set_content_length_os_error(mock_getsize):
-    """Test StreamResponse set_content_length method with OS error."""
-    mock_getsize.side_effect = OSError("File not found")
-
-    response = StreamResponse("/tmp/test.txt", status=200)
-    response.set_content_length()  # Should not raise exception
-
-    # Content-Length header should not be set
-    assert "content-length" not in response.headers
 
 
 def test_success_response():
@@ -402,14 +375,6 @@ def test_response_delete_header_case_insensitive():
     assert "x-custom" in response.headers
 
 
-def test_stream_response_with_mimetype_guessing():
-    """Test StreamResponse with mimetype guessing."""
-    with patch("mimetypes.guess_type", return_value=("text/html", None)):
-        response = StreamResponse("/tmp/test.html", status=200)
-
-    assert response.headers["content-type"] == "text/html"
-
-
 def test_stream_response_with_iterator():
     """Test StreamResponse with iterator content."""
 
@@ -422,20 +387,6 @@ def test_stream_response_with_iterator():
 
     assert response.body is gen
     assert response.headers["content-type"] == "application/octet-stream"
-
-
-def test_stream_response_set_content_length_no_file_path():
-    """Test StreamResponse set_content_length method when no file_path."""
-    # Create a StreamResponse with bytes content, which doesn't set file_path
-    response = StreamResponse(b"content", status=200)
-
-    # For bytes content, file_path is not set, but content-length is set in __init__
-    # Let's test the method directly by patching os.path.getsize to raise AttributeError
-    with patch("os.path.getsize", side_effect=AttributeError("No file_path")):
-        response.set_content_length()  # Should not raise exception
-
-    # Content-Length header should still be there from __init__
-    assert "content-length" in response.headers
 
 
 def test_response_body_bytes_cache_clearing():
@@ -494,3 +445,77 @@ def test_response_body_bytes_cache_clearing_on_delete_cookie():
     response.delete_cookie("session_id")
 
     # Cache should be cleared (same caveat as above)
+
+
+def test_stream_response_file_headers_text(tmp_path):
+    """Test StreamResponse infers headers for text files and sets sizes/dates."""
+    data = b"hello world"
+    p = tmp_path / "sample.txt"
+    p.write_bytes(data)
+
+    response = StreamResponse(str(p))
+
+    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+    assert response.headers["content-length"] == str(len(data))
+    assert "last-modified" in response.headers
+    assert "date" in response.headers
+
+
+def test_stream_response_file_download_header(tmp_path):
+    """Test StreamResponse sets Content-Disposition when download is provided."""
+    p = tmp_path / "file.bin"
+    p.write_bytes(b"x" * 10)
+
+    response = StreamResponse(str(p), download="myname.bin")
+
+    assert (
+        response.headers["content-disposition"]
+        == 'attachment; filename="myname.bin"'
+    )
+
+
+def test_stream_response_file_mimetype_gzip(tmp_path):
+    """Test StreamResponse maps gzip-encoded files to application/gzip."""
+    p = tmp_path / "archive.gz"
+    p.write_bytes(b"not a real gzip, but extension is enough")
+
+    response = StreamResponse(str(p))
+
+    assert response.headers["content-type"] == "application/gzip"
+
+
+def test_stream_response_file_custom_content_type_appends_charset(tmp_path):
+    """If an explicit text/* content type lacks charset, utf-8 is appended."""
+    p = tmp_path / "index.html"
+    p.write_text("<h1>hi</h1>", encoding="utf-8")
+
+    response = StreamResponse(str(p), content_type="text/html")
+
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+
+
+def test_stream_response_file_javascript_charset_added(tmp_path):
+    """JavaScript content types should include charset=utf-8."""
+    p = tmp_path / "script.js"
+    p.write_text("console.log('hi');", encoding="utf-8")
+
+    response = StreamResponse(str(p))
+
+    ct = response.headers["content-type"]
+    assert ct.endswith("; charset=utf-8")
+    assert "javascript" in ct
+
+
+def test_stream_response_as_wsgi_file_body_iterates_content(tmp_path):
+    """as_wsgi for file should yield file bytes via iterator."""
+    data = b"chunk1chunk2"
+    p = tmp_path / "payload.bin"
+    p.write_bytes(data)
+
+    response = StreamResponse(str(p), chunk_size=6)
+    status_str, headers_list, body_iter = response.as_wsgi()
+
+    assert status_str == "200 OK"
+    # Verify that the body iterator yields the same bytes
+    collected = b"".join(body_iter)
+    assert collected == data
