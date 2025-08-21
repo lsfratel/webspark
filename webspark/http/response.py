@@ -310,20 +310,24 @@ class RedirectResponse(Response):
 
 
 class StreamResponse(Response):
-    """Streaming HTTP response for large files or data.
+    """
+    Streaming HTTP response for large files, raw bytes, or iterables.
 
-    This class handles streaming responses, particularly useful for serving
-    large files without loading them entirely into memory.
+    Supports:
+      - Streaming files in chunks (avoids loading into memory).
+      - Returning raw bytes or iterables as a response.
+      - Handling HTTP Range requests (`206 Partial Content`) for partial downloads.
+      - Optional `Accept-Ranges` header to advertise support.
 
-    Example:
-        # Stream a file
-        response = StreamResponse("/path/to/large/file.mp4")
+    Examples:
+        >>> # Stream raw bytes
+        response = StreamResponse(b"hello world")
 
-        # Stream generated content
-        def content_generator():
-            for i in range(1000):
-                yield f"Line {i}\n".encode()
-        response = StreamResponse(content_generator())
+        >>> # Stream a file
+        response = StreamResponse("/path/to/file.mp4")
+
+        >>> # Support partial download
+        response = StreamResponse("/path/to/file.mp4", range_header="bytes=0-99")
     """
 
     def __init__(
@@ -334,78 +338,239 @@ class StreamResponse(Response):
         content_type: str | None = None,
         chunk_size: int = 4096,
         download: str | None = None,
+        range_header: str | None = None,
+        accept_ranges: str | None = "bytes",
     ):
-        """Initialize a StreamResponse.
+        """
+        Initialize a StreamResponse.
 
         Args:
-            content: Content to stream (bytes, file path, or iterable).
+            content: Response body (bytes, file path, PathLike, or iterable).
             status: HTTP status code (default: 200).
-            headers: Additional headers.
-            content_type: Content-Type header.
-            chunk_size: Size of chunks for file streaming (default: 4096).
-            download: Name of attachment file for download (optional).
+            headers: Optional headers to include.
+            content_type: MIME type to use (default guessed from file or binary).
+            chunk_size: Chunk size when streaming files (default: 4096).
+            download: Optional filename to suggest for download (adds Content-Disposition).
+            range_header: Raw HTTP Range header string, e.g. "bytes=0-499".
+            accept_ranges: Value for "Accept-Ranges" header (default: "bytes").
         """
         self.chunk_size = chunk_size
         self.content_type = content_type
+        self.range_header = range_header
         headers = headers or {}
 
+        body, final_status, final_headers, final_type = self._prepare_content(
+            content, status, headers, content_type, download
+        )
+
+        if accept_ranges:
+            final_headers["accept-ranges"] = accept_ranges
+
+        super().__init__(body, final_status, final_headers, final_type)
+
+    def _prepare_content(
+        self,
+        content: Any,
+        status: int,
+        headers: dict[str, str],
+        content_type: str | None,
+        download: str | None,
+    ):
+        """
+        Inspect content type and delegate handling.
+
+        Returns:
+            tuple: (body, status, headers, content_type)
+        """
         if isinstance(content, bytes):
-            content_type = content_type or "application/octet-stream"
-            headers["content-length"] = str(len(content))
-            super().__init__([content], status, headers, content_type)
-        elif isinstance(content, str | os.PathLike):
-            if not os.path.exists(content) or not os.path.isfile(content):
-                raise HTTPException("File does not exist.", status_code=404)
-            if not os.access(content, os.R_OK):
-                raise HTTPException(
-                    "You do not have permission to access this file.", status_code=403
-                )
-            self.file_path = content
-            if content_type:
-                headers["content-type"] = content_type
-            else:
-                content_type, encoding = mimetypes.guess_type(content)
-                if encoding == "gzip":
-                    content_type = "application/gzip"
-                elif encoding:
-                    content_type = f"application/x-{encoding}"
-            if content_type and "charset=" not in content_type:
-                if (
-                    content_type.startswith("text/")
-                    or content_type == "application/javascript"
-                ):
-                    content_type += "; charset=utf-8"
+            return self._handle_bytes(content, status, headers, content_type)
 
-            content_type = content_type or "application/octet-stream"
-            stats = os.stat(content)
-            headers["content-length"] = str(stats.st_size)
-            headers["last-modified"] = formatdate(stats.st_mtime, usegmt=True)
-            headers["date"] = formatdate(time.time(), usegmt=True)
-            if download:
-                headers["content-disposition"] = f'attachment; filename="{download}"'
-            super().__init__(self.file_iterator(), status, headers, content_type)
-        else:
-            content_type = content_type or "application/octet-stream"
-            super().__init__(content, status, headers, content_type)
+        if isinstance(content, str | os.PathLike):
+            return self._handle_file(content, status, headers, content_type, download)
 
-    def file_iterator(self):
-        """Iterator that yields file content in chunks.
+        return self._handle_iterable(content, status, headers, content_type)
+
+    def _handle_bytes(
+        self,
+        content: bytes,
+        status: int,
+        headers: dict[str, str],
+        content_type: str | None,
+    ):
+        """
+        Handle response when `content` is raw bytes.
+
+        Supports full responses and partial responses if `Range` header is present.
+
+        Returns:
+            tuple: (body, status, headers, content_type)
+        """
+        content_type = content_type or "application/octet-stream"
+        total_size = len(content)
+
+        if self.range_header:
+            start, end = self._parse_range(self.range_header, total_size)
+            headers["content-range"] = f"bytes {start}-{end}/{total_size}"
+            headers["content-length"] = str(end - start + 1)
+            return [content[start : end + 1]], 206, headers, content_type
+
+        headers["content-length"] = str(total_size)
+        return [content], status, headers, content_type
+
+    def _handle_file(
+        self,
+        path: str | os.PathLike,
+        status: int,
+        headers: dict[str, str],
+        content_type: str | None,
+        download: str | None,
+    ):
+        """
+        Handle response when `content` is a file path.
+
+        Validates file existence and permissions, detects MIME type,
+        and supports Range requests.
+
+        Returns:
+            tuple: (body_iterator, status, headers, content_type)
+        """
+        path = os.fspath(path)
+        if not os.path.exists(path) or not os.path.isfile(path):
+            raise HTTPException("File does not exist.", status_code=404)
+
+        if not os.access(path, os.R_OK):
+            raise HTTPException(
+                "You do not have permission to access this file.", status_code=403
+            )
+
+        self.file_path = path
+        content_type = self._detect_mimetype(path, content_type)
+
+        stats = os.stat(path)
+        file_size = stats.st_size
+
+        headers["last-modified"] = formatdate(stats.st_mtime, usegmt=True)
+        headers["date"] = formatdate(time.time(), usegmt=True)
+        if download:
+            headers["content-disposition"] = f'attachment; filename="{download}"'
+
+        if self.range_header:
+            start, end = self._parse_range(self.range_header, file_size)
+            headers["content-range"] = f"bytes {start}-{end}/{file_size}"
+            headers["content-length"] = str(end - start + 1)
+            return self.file_iterator(start, end), 206, headers, content_type
+
+        headers["content-length"] = str(file_size)
+        return self.file_iterator(), status, headers, content_type
+
+    def _handle_iterable(
+        self,
+        content: Any,
+        status: int,
+        headers: dict[str, str],
+        content_type: str | None,
+    ):
+        """
+        Handle response when `content` is an iterable.
+
+        Note:
+            Range requests are not supported for iterables.
+
+        Returns:
+            tuple: (iterable, status, headers, content_type)
+        """
+        content_type = content_type or "application/octet-stream"
+        return content, status, headers, content_type
+
+    def _detect_mimetype(self, path: str, content_type: str | None) -> str:
+        """
+        Guess MIME type from file extension or fallback to default.
+
+        Adds `charset=utf-8` for text/* and JavaScript.
+
+        Args:
+            path: File path.
+            content_type: Explicit content type, if provided.
+
+        Returns:
+            str: Final MIME type.
+        """
+        if content_type:
+            return content_type
+
+        guessed, encoding = mimetypes.guess_type(path)
+        if encoding == "gzip":
+            guessed = "application/gzip"
+        elif encoding:
+            guessed = f"application/x-{encoding}"
+
+        if guessed and "charset=" not in guessed:
+            if guessed.startswith("text/") or guessed == "application/javascript":
+                guessed += "; charset=utf-8"
+
+        return guessed or "application/octet-stream"
+
+    def _parse_range(self, range_header: str, total_size: int):
+        """
+        Parse an HTTP Range header.
+
+        Example: "bytes=0-499" → (0, 499)
+
+        Args:
+            range_header: Value of the Range header.
+            total_size: Size of the content in bytes.
+
+        Returns:
+            tuple[int, int]: (start, end) byte positions.
+
+        Raises:
+            HTTPException: If the range is invalid.
+        """
+        try:
+            unit, _, range_spec = range_header.partition("=")
+            if unit.strip().lower() != "bytes":
+                raise ValueError
+            start_str, _, end_str = range_spec.partition("-")
+
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else total_size - 1
+
+            if start > end or start >= total_size:
+                raise ValueError
+
+            return start, min(end, total_size - 1)
+        except ValueError as e:
+            raise HTTPException("Invalid Range header.", status_code=416) from e
+
+    def file_iterator(self, start: int = 0, end: int | None = None):
+        """
+        Yield file content in chunks.
+
+        Args:
+            start: Starting byte offset (default: 0).
+            end: Ending byte offset (inclusive). Defaults to end of file.
 
         Yields:
-            bytes: File content chunks.
+            bytes: Chunks of the file within the given range.
         """
+        end = end if end is not None else os.stat(self.file_path).st_size - 1
         with open(self.file_path, "rb") as f:
-            while True:
-                chunk = f.read(self.chunk_size)
+            f.seek(start)
+            remaining = end - start + 1
+            while remaining > 0:
+                chunk = f.read(min(self.chunk_size, remaining))
                 if not chunk:
                     break
                 yield chunk
+                remaining -= len(chunk)
 
     def as_wsgi(self):
-        """Convert streaming response to WSGI format.
+        """
+        Convert response into WSGI-compatible triple.
 
         Returns:
-            tuple: A tuple of (status_string, headers_list, body_iterator).
+            tuple[str, list[tuple[str, str]], Any]:
+                (status line, headers, body iterable)
         """
         status_str = STATUS_CODE.get(self.status, f"{self.status} Unknown")
         headers_list = list(self.headers.items())

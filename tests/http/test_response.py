@@ -414,13 +414,13 @@ def test_stream_response_file_mimetype_gzip(tmp_path):
     assert response.headers["content-type"] == "application/gzip"
 
 
-def test_stream_response_file_custom_content_type_appends_charset(tmp_path):
+def test_stream_response_file_custom_content_type(tmp_path):
     p = tmp_path / "index.html"
     p.write_text("<h1>hi</h1>", encoding="utf-8")
 
     response = StreamResponse(str(p), content_type="text/html")
 
-    assert response.headers["content-type"] == "text/html; charset=utf-8"
+    assert response.headers["content-type"] == "text/html"
 
 
 def test_stream_response_file_javascript_charset_added(tmp_path):
@@ -445,3 +445,70 @@ def test_stream_response_as_wsgi_file_body_iterates_content(tmp_path):
     assert status_str == "200 OK"
     collected = b"".join(body_iter)
     assert collected == data
+
+
+def test_stream_response_bytes_with_range():
+    content = b"abcdefghij"
+    response = StreamResponse(content, range_header="bytes=2-5")
+
+    assert response.status == 206
+    assert response.body == [b"cdef"]
+    assert response.headers["content-range"] == "bytes 2-5/10"
+    assert response.headers["content-length"] == "4"
+
+
+def test_stream_response_bytes_with_open_ended_range():
+    content = b"abcdefghij"
+    response = StreamResponse(content, range_header="bytes=5-")
+
+    assert response.status == 206
+    assert response.body == [b"fghij"]
+    assert response.headers["content-range"] == "bytes 5-9/10"
+    assert response.headers["content-length"] == "5"
+
+
+def test_stream_response_bytes_with_invalid_range():
+    content = b"abcdefghij"
+    with pytest.raises(HTTPException) as excinfo:
+        StreamResponse(content, range_header="bytes=20-30")
+
+    assert excinfo.value.status_code == 416
+
+
+def test_stream_response_file_with_range(tmp_path):
+    data = b"0123456789"
+    p = tmp_path / "rangefile.bin"
+    p.write_bytes(data)
+
+    response = StreamResponse(str(p), range_header="bytes=2-5")
+
+    assert response.status == 206
+    chunks = list(response.body)
+    assert b"".join(chunks) == b"2345"
+    assert response.headers["content-range"] == "bytes 2-5/10"
+    assert response.headers["content-length"] == "4"
+
+
+def test_stream_response_file_with_open_ended_range(tmp_path):
+    data = b"0123456789"
+    p = tmp_path / "rangefile2.bin"
+    p.write_bytes(data)
+
+    response = StreamResponse(str(p), range_header="bytes=7-")
+
+    assert response.status == 206
+    collected = b"".join(response.body)
+    assert collected == b"789"
+    assert response.headers["content-range"] == "bytes 7-9/10"
+    assert response.headers["content-length"] == "3"
+
+
+def test_stream_response_file_with_invalid_range(tmp_path):
+    data = b"0123456789"
+    p = tmp_path / "bad_range.bin"
+    p.write_bytes(data)
+
+    with pytest.raises(HTTPException) as excinfo:
+        StreamResponse(str(p), range_header="bytes=50-60")
+
+    assert excinfo.value.status_code == 416
