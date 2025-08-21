@@ -16,7 +16,6 @@ from webspark.utils.exceptions import HTTPException
 
 
 def test_response_initialization():
-    """Test Response initialization with default values."""
     response = Response()
 
     assert response.body == b""
@@ -27,7 +26,6 @@ def test_response_initialization():
 
 
 def test_response_initialization_with_params():
-    """Test Response initialization with custom parameters."""
     headers = {"Content-Type": "text/plain", "X-Custom": "value"}
     response = Response(
         body="Hello, World!",
@@ -44,13 +42,11 @@ def test_response_initialization_with_params():
 
 
 def test_response_invalid_status_code():
-    """Test Response initialization with invalid status code."""
     with pytest.raises(ValueError, match="Invalid HTTP status code: 999"):
         Response(status=999)
 
 
 def test_response_set_cookie():
-    """Test setting cookies on Response."""
     response = Response()
     response.set_cookie("session_id", "abc123", path="/", max_age=3600)
 
@@ -60,7 +56,6 @@ def test_response_set_cookie():
 
 
 def test_response_delete_cookie():
-    """Test deleting cookies on Response."""
     response = Response()
     response.delete_cookie("session_id")
 
@@ -70,7 +65,6 @@ def test_response_delete_cookie():
 
 
 def test_response_set_header():
-    """Test setting headers on Response."""
     response = Response()
     response.set_header("Content-Type", "application/json")
 
@@ -78,7 +72,6 @@ def test_response_set_header():
 
 
 def test_response_get_header():
-    """Test getting headers from Response."""
     response = Response(headers={"Content-Type": "application/json"})
 
     assert response.get_header("Content-Type") == "application/json"
@@ -87,7 +80,6 @@ def test_response_get_header():
 
 
 def test_response_delete_header():
-    """Test deleting headers from Response."""
     response = Response(
         headers={"Content-Type": "application/json", "X-Custom": "value"}
     )
@@ -98,20 +90,16 @@ def test_response_delete_header():
 
 
 def test_response_body_bytes_cached_property():
-    """Test _body_bytes cached property."""
     response = Response(body="Hello, World!")
 
-    # First access
     body_bytes = response._body_bytes
     assert isinstance(body_bytes, bytes)
     assert body_bytes == b"Hello, World!"
 
-    # Second access should return the same object (cached)
     assert response._body_bytes is body_bytes
 
 
 def test_response_to_bytes_with_bytes():
-    """Test _to_bytes method with bytes input."""
     response = Response()
     result = response._to_bytes(b"test bytes")
 
@@ -120,7 +108,6 @@ def test_response_to_bytes_with_bytes():
 
 
 def test_response_to_bytes_with_string():
-    """Test _to_bytes method with string input."""
     response = Response()
     result = response._to_bytes("test string")
 
@@ -129,7 +116,6 @@ def test_response_to_bytes_with_string():
 
 
 def test_response_to_bytes_with_string_and_charset():
-    """Test _to_bytes method with string input and custom charset."""
     response = Response(charset="utf-16")
     result = response._to_bytes("test string")
 
@@ -138,8 +124,6 @@ def test_response_to_bytes_with_string_and_charset():
 
 
 def test_response_to_bytes_with_object_with_bytes_method():
-    """Test _to_bytes method with object that has __bytes__ method."""
-
     class BytesObject:
         def __bytes__(self):
             return b"custom bytes"
@@ -152,7 +136,6 @@ def test_response_to_bytes_with_object_with_bytes_method():
 
 
 def test_response_to_bytes_with_generic_object():
-    """Test _to_bytes method with generic object."""
     response = Response()
     result = response._to_bytes(123)
 
@@ -161,7 +144,6 @@ def test_response_to_bytes_with_generic_object():
 
 
 def test_response_as_wsgi():
-    """Test as_wsgi method."""
     response = Response(body="Hello, World!", status=200)
     status_str, headers_list, body_iter = response.as_wsgi()
 
@@ -171,7 +153,6 @@ def test_response_as_wsgi():
 
 
 def test_response_as_wsgi_with_custom_headers():
-    """Test as_wsgi method with custom headers."""
     response = Response(
         body="Hello, World!",
         status=200,
@@ -180,7 +161,6 @@ def test_response_as_wsgi_with_custom_headers():
     status_str, headers_list, body_iter = response.as_wsgi()
 
     assert status_str == "200 OK"
-    # Headers are normalized to lowercase
     assert ("content-type", "text/plain") in headers_list
     assert ("x-custom", "value") in headers_list
     assert ("Content-Length", "13") in headers_list
@@ -188,7 +168,6 @@ def test_response_as_wsgi_with_custom_headers():
 
 
 def test_response_as_wsgi_with_cookies():
-    """Test as_wsgi method with cookies."""
     response = Response(body="Hello, World!")
     response.set_cookie("session_id", "abc123")
     status_str, headers_list, body_iter = response.as_wsgi()
@@ -199,7 +178,6 @@ def test_response_as_wsgi_with_cookies():
 
 
 def test_text_response():
-    """Test TextResponse."""
     response = TextResponse("Hello, World!", status=200)
 
     assert response.body == "Hello, World!"
@@ -208,21 +186,18 @@ def test_text_response():
 
 
 def test_json_response():
-    """Test JsonResponse."""
     data = {"message": "Hello, World!", "status": "success"}
     response = JsonResponse(data, status=200)
 
     assert response.status == 200
     assert response.headers["content-type"] == "application/json; charset=utf-8"
 
-    # Verify the body is JSON serialized
     body_bytes = response._body_bytes
     decoded_data = json.loads(body_bytes.decode("utf-8"))
     assert decoded_data == data
 
 
 def test_html_response():
-    """Test HTMLResponse."""
     html = "<html><body><h1>Hello, World!</h1></body></html>"
     response = HTMLResponse(html, status=200)
 
@@ -232,7 +207,6 @@ def test_html_response():
 
 
 def test_redirect_response_temporary():
-    """Test RedirectResponse for temporary redirects."""
     url = "/new-location"
     response = RedirectResponse(url)
 
@@ -241,7 +215,6 @@ def test_redirect_response_temporary():
 
 
 def test_redirect_response_permanent():
-    """Test RedirectResponse for permanent redirects."""
     url = "/new-home"
     response = RedirectResponse(url, permanent=True)
 
@@ -250,7 +223,6 @@ def test_redirect_response_permanent():
 
 
 def test_stream_response_with_bytes():
-    """Test StreamResponse with bytes content."""
     content = b"file content"
     response = StreamResponse(
         content, status=200, content_type="application/octet-stream"
@@ -263,14 +235,13 @@ def test_stream_response_with_bytes():
 
 
 def test_stream_response_with_string_dont_exists():
-    """Test StreamResponse with string content that does not exist."""
     content = "nonexistent_file"
 
     with pytest.raises(HTTPException):
         _ = StreamResponse(content, status=200)
 
+
 def test_stream_response_with_pathlike_dont_exists():
-    """Test StreamResponse with PathLike content that does not exist."""
     from pathlib import Path
 
     content = Path("/tmp/test.txt")
@@ -280,7 +251,6 @@ def test_stream_response_with_pathlike_dont_exists():
 
 @patch("builtins.open", new_callable=mock_open, read_data=b"chunk1chunk2")
 def test_stream_response_file_iterator(mock_file):
-    """Test StreamResponse file_iterator method."""
     response = StreamResponse("tests/http/test_cookie.py", status=200, chunk_size=6)
 
     chunks = list(response.file_iterator())
@@ -291,7 +261,6 @@ def test_stream_response_file_iterator(mock_file):
 
 
 def test_stream_response_as_wsgi():
-    """Test StreamResponse as_wsgi method."""
     content = b"file content"
     response = StreamResponse(content, status=200)
     status_str, headers_list, body_iter = response.as_wsgi()
@@ -301,7 +270,6 @@ def test_stream_response_as_wsgi():
 
 
 def test_success_response():
-    """Test SuccessResponse function."""
     data = {"id": 1, "name": "Test"}
     response = SuccessResponse(data, status=201)
 
@@ -309,15 +277,12 @@ def test_success_response():
     assert response.status == 201
     assert response.headers["content-type"] == "application/json; charset=utf-8"
 
-    # Verify the response body structure
     body_bytes = response._body_bytes
     decoded_data = json.loads(body_bytes.decode("utf-8"))
     assert decoded_data == {"success": True, "data": data}
 
 
 def test_response_as_wsgi_with_unknown_status():
-    """Test as_wsgi method with unknown status code."""
-    # Test with a valid but undefined status code
     response = Response(body="Hello, World!", status=299)
     status_str, headers_list, body_iter = response.as_wsgi()
 
@@ -326,11 +291,9 @@ def test_response_as_wsgi_with_unknown_status():
 
 
 def test_response_as_wsgi_content_length_already_set():
-    """Test as_wsgi method when Content-Length is already set."""
     response = Response(body="Hello, World!", headers={"Content-Length": "13"})
     status_str, headers_list, body_iter = response.as_wsgi()
 
-    # Should not add another Content-Length header
     content_length_headers = [
         h for h in headers_list if h[0].lower() == "content-length"
     ]
@@ -339,24 +302,20 @@ def test_response_as_wsgi_content_length_already_set():
 
 
 def test_stream_response_with_content_type():
-    """Test StreamResponse with explicit content type."""
     response = StreamResponse(b"content", status=200, content_type="text/csv")
 
     assert response.headers["content-type"] == "text/csv"
 
 
 def test_response_set_header_case_insensitive():
-    """Test that set_header is case insensitive."""
     response = Response()
     response.set_header("Content-Type", "application/json")
     response.set_header("content-type", "text/html")
 
-    # The second call should overwrite the first (case insensitive)
     assert response.headers["content-type"] == "text/html"
 
 
 def test_response_get_header_case_insensitive():
-    """Test that get_header is case insensitive."""
     response = Response(headers={"Content-Type": "application/json"})
 
     assert response.get_header("Content-Type") == "application/json"
@@ -365,7 +324,6 @@ def test_response_get_header_case_insensitive():
 
 
 def test_response_delete_header_case_insensitive():
-    """Test that delete_header is case insensitive."""
     response = Response(
         headers={"Content-Type": "application/json", "X-Custom": "value"}
     )
@@ -376,8 +334,6 @@ def test_response_delete_header_case_insensitive():
 
 
 def test_stream_response_with_iterator():
-    """Test StreamResponse with iterator content."""
-
     def content_generator():
         yield b"chunk1"
         yield b"chunk2"
@@ -390,65 +346,42 @@ def test_stream_response_with_iterator():
 
 
 def test_response_body_bytes_cache_clearing():
-    """Test that body bytes cache is cleared when headers are modified."""
     response = Response(body="Hello, World!")
 
-    # Access body_bytes to populate cache
     first_access = response._body_bytes
-    assert first_access is response._body_bytes  # Cached
+    assert first_access is response._body_bytes
 
-    # Modify headers
     response.set_header("X-Test", "value")
-
-    # Cache should be cleared (this test actually verifies that the cached_property
-    # mechanism works, but we can't easily test that the cache was cleared without
-    # accessing private attributes)
 
 
 def test_response_body_bytes_cache_clearing_on_delete():
-    """Test that body bytes cache is cleared when headers are deleted."""
     response = Response(body="Hello, World!", headers={"X-Test": "value"})
 
-    # Access body_bytes to populate cache
     first_access = response._body_bytes
-    assert first_access is response._body_bytes  # Cached
+    assert first_access is response._body_bytes
 
-    # Delete header
     response.delete_header("X-Test")
-
-    # Cache should be cleared (same caveat as above)
 
 
 def test_response_body_bytes_cache_clearing_on_set_cookie():
-    """Test that body bytes cache is cleared when cookies are set."""
     response = Response(body="Hello, World!")
 
-    # Access body_bytes to populate cache
     first_access = response._body_bytes
-    assert first_access is response._body_bytes  # Cached
+    assert first_access is response._body_bytes
 
-    # Set cookie
     response.set_cookie("session_id", "abc123")
-
-    # Cache should be cleared (same caveat as above)
 
 
 def test_response_body_bytes_cache_clearing_on_delete_cookie():
-    """Test that body bytes cache is cleared when cookies are deleted."""
     response = Response(body="Hello, World!")
 
-    # Access body_bytes to populate cache
     first_access = response._body_bytes
-    assert first_access is response._body_bytes  # Cached
+    assert first_access is response._body_bytes
 
-    # Delete cookie
     response.delete_cookie("session_id")
-
-    # Cache should be cleared (same caveat as above)
 
 
 def test_stream_response_file_headers_text(tmp_path):
-    """Test StreamResponse infers headers for text files and sets sizes/dates."""
     data = b"hello world"
     p = tmp_path / "sample.txt"
     p.write_bytes(data)
@@ -462,20 +395,17 @@ def test_stream_response_file_headers_text(tmp_path):
 
 
 def test_stream_response_file_download_header(tmp_path):
-    """Test StreamResponse sets Content-Disposition when download is provided."""
     p = tmp_path / "file.bin"
     p.write_bytes(b"x" * 10)
 
     response = StreamResponse(str(p), download="myname.bin")
 
     assert (
-        response.headers["content-disposition"]
-        == 'attachment; filename="myname.bin"'
+        response.headers["content-disposition"] == 'attachment; filename="myname.bin"'
     )
 
 
 def test_stream_response_file_mimetype_gzip(tmp_path):
-    """Test StreamResponse maps gzip-encoded files to application/gzip."""
     p = tmp_path / "archive.gz"
     p.write_bytes(b"not a real gzip, but extension is enough")
 
@@ -485,7 +415,6 @@ def test_stream_response_file_mimetype_gzip(tmp_path):
 
 
 def test_stream_response_file_custom_content_type_appends_charset(tmp_path):
-    """If an explicit text/* content type lacks charset, utf-8 is appended."""
     p = tmp_path / "index.html"
     p.write_text("<h1>hi</h1>", encoding="utf-8")
 
@@ -495,7 +424,6 @@ def test_stream_response_file_custom_content_type_appends_charset(tmp_path):
 
 
 def test_stream_response_file_javascript_charset_added(tmp_path):
-    """JavaScript content types should include charset=utf-8."""
     p = tmp_path / "script.js"
     p.write_text("console.log('hi');", encoding="utf-8")
 
@@ -507,7 +435,6 @@ def test_stream_response_file_javascript_charset_added(tmp_path):
 
 
 def test_stream_response_as_wsgi_file_body_iterates_content(tmp_path):
-    """as_wsgi for file should yield file bytes via iterator."""
     data = b"chunk1chunk2"
     p = tmp_path / "payload.bin"
     p.write_bytes(data)
@@ -516,6 +443,5 @@ def test_stream_response_as_wsgi_file_body_iterates_content(tmp_path):
     status_str, headers_list, body_iter = response.as_wsgi()
 
     assert status_str == "200 OK"
-    # Verify that the body iterator yields the same bytes
     collected = b"".join(body_iter)
     assert collected == data

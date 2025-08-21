@@ -8,7 +8,6 @@ from webspark.utils.exceptions import HTTPException
 
 
 def test_multipart_parser_initialization():
-    """Test MultipartParser initialization with default values."""
     stream = io.BytesIO(b"")
     content_type = "multipart/form-data; boundary=boundary"
     content_length = 0
@@ -27,7 +26,6 @@ def test_multipart_parser_initialization():
 
 
 def test_multipart_parser_initialization_with_custom_values():
-    """Test MultipartParser initialization with custom values."""
     stream = io.BytesIO(b"")
     content_type = "multipart/form-data; boundary=boundary"
     content_length = 0
@@ -49,7 +47,6 @@ def test_multipart_parser_initialization_with_custom_values():
 
 
 def test_boundary_property():
-    """Test boundary property extraction."""
     stream = io.BytesIO(b"")
     content_type = "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW"
     content_length = 0
@@ -60,7 +57,6 @@ def test_boundary_property():
 
 
 def test_boundary_property_with_charset():
-    """Test boundary property extraction with charset."""
     stream = io.BytesIO(b"")
     content_type = "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW; charset=utf-8"
     content_length = 0
@@ -72,7 +68,6 @@ def test_boundary_property_with_charset():
 
 
 def test_boundary_property_missing():
-    """Test boundary property when boundary is missing."""
     stream = io.BytesIO(b"")
     content_type = "multipart/form-data"
     content_length = 0
@@ -87,7 +82,6 @@ def test_boundary_property_missing():
 
 
 def test_content_length_property():
-    """Test content_length property."""
     stream = io.BytesIO(b"")
     content_type = "multipart/form-data; boundary=boundary"
     content_length = 1024
@@ -98,7 +92,6 @@ def test_content_length_property():
 
 
 def test_detect_delimiter_crlf():
-    """Test _detect_delimiter with CRLF."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
     boundary = b"----boundary"
     buffer = b"random data----boundary\r\nmore data"
@@ -109,7 +102,6 @@ def test_detect_delimiter_crlf():
 
 
 def test_detect_delimiter_lf():
-    """Test _detect_delimiter with LF."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
     boundary = b"----boundary"
     buffer = b"random data----boundary\nmore data"
@@ -120,7 +112,6 @@ def test_detect_delimiter_lf():
 
 
 def test_detect_delimiter_not_found():
-    """Test _detect_delimiter when boundary not found."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
     boundary = b"----boundary"
     buffer = b"random data without boundary"
@@ -130,16 +121,13 @@ def test_detect_delimiter_not_found():
 
 
 def test_cleanup():
-    """Test _cleanup method."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
 
-    # Set some test values
     parser._cfield = {"name": "test"}
     parser._ccontent = b"test content"
     parser.forms = {"field": ["value"]}
     parser.files = {"file": ["file_data"]}
 
-    # Create a mock tempfile
     mock_stream = Mock()
     mock_stream.closed = False
     mock_stream.name = "/tmp/test.tmp"
@@ -149,12 +137,9 @@ def test_cleanup():
         with patch("os.remove") as mock_remove:
             parser._cleanup()
 
-            # Check that stream was closed
             mock_stream.close.assert_called_once()
-            # Check that file was removed
             mock_remove.assert_called_once_with("/tmp/test.tmp")
 
-    # Check that attributes were reset
     assert parser._cfield == {}
     assert parser._ccontent == b""
     assert parser._cstream is None
@@ -163,7 +148,6 @@ def test_cleanup():
 
 
 def test_create_tempfile():
-    """Test _create_tempfile method."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
 
     with patch("webspark.http.multipart.NamedTemporaryFile") as mock_tempfile:
@@ -179,7 +163,6 @@ def test_create_tempfile():
 
 
 def test_on_body_end():
-    """Test _on_body_end method."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
     parser._cfield = {"name": "test_field"}
     parser._ccontent = b"test content"
@@ -195,10 +178,8 @@ def test_on_body_end():
 
 
 def test_on_fbody_end():
-    """Test _on_fbody_end method."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
 
-    # Create a mock tempfile
     mock_stream = Mock()
     mock_stream.name = "/tmp/test.tmp"
     parser._cstream = mock_stream
@@ -211,10 +192,8 @@ def test_on_fbody_end():
 
     parser._on_fbody_end()
 
-    # Check that stream was rewound
     mock_stream.seek.assert_called_once_with(0)
 
-    # Check that file was added to files dict
     assert "test_file" in parser.files
     assert isinstance(parser.files["test_file"], dict)
     file_info = parser.files["test_file"]
@@ -222,13 +201,11 @@ def test_on_fbody_end():
     assert file_info["file"] == mock_stream
     assert file_info["content_type"] == "text/plain"
 
-    # Check that attributes were reset
     assert parser._cfield == {}
     assert parser._cstream is None
 
 
 def test_process_headers():
-    """Test _process_headers method."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
     parser._delimiter = Mock()
     parser._delimiter.value = b"\r\n"
@@ -244,7 +221,6 @@ def test_process_headers():
 
 
 def test_parse_simple_form_data():
-    """Test parsing simple form data."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\n"
@@ -266,7 +242,6 @@ def test_parse_simple_form_data():
 
 
 def test_parse_file_upload():
-    """Test parsing file upload."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\n"
@@ -300,7 +275,6 @@ def test_parse_file_upload():
 
 
 def test_parse_max_body_size_exceeded():
-    """Test parsing when max body size is exceeded."""
     stream = io.BytesIO(b"")
     content_type = "multipart/form-data; boundary=boundary"
     content_length = 2048
@@ -315,7 +289,6 @@ def test_parse_max_body_size_exceeded():
 
 
 def test_parse_with_context_manager():
-    """Test parsing using a context manager."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\n"
@@ -335,7 +308,6 @@ def test_parse_with_context_manager():
 
 
 def test_parse_multiple_files_same_name():
-    """Test parsing multiple files with the same name."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\n"
@@ -365,7 +337,6 @@ def test_parse_multiple_files_same_name():
 
 
 def test_process_headers_malformed():
-    """Test processing malformed headers."""
     parser = MultipartParser(io.BytesIO(b""), "", 0)
     parser._delimiter = Mock()
     parser._delimiter.value = b"\r\n"
@@ -377,7 +348,6 @@ def test_process_headers_malformed():
 
 
 def test_parse_malformed_part_headers():
-    """Test parsing malformed part headers."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\nContent-Disposition: form-data; name=field1".encode()
@@ -395,7 +365,6 @@ def test_parse_malformed_part_headers():
 
 
 def test_parse_part_header_terminator_not_found():
-    """Test parsing when part header terminator is not found."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\nContent-Disposition: form-data; name=field1\r\n".encode()
@@ -413,7 +382,6 @@ def test_parse_part_header_terminator_not_found():
 
 
 def test_parse_closing_boundary_not_found():
-    """Test parsing when closing boundary is not found."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\n"
@@ -433,7 +401,6 @@ def test_parse_closing_boundary_not_found():
 
 
 def test_parse_body_terminator_not_found():
-    """Test parsing when body terminator is not found."""
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     form_data = (
         f"------{boundary}\r\n"
@@ -441,7 +408,6 @@ def test_parse_body_terminator_not_found():
         f"value1\r\n"
         f"------{boundary}"
     ).encode()
-    # Missing the final '--'
 
     stream = io.BytesIO(form_data)
     content_type = f"multipart/form-data; boundary={boundary}"

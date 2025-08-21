@@ -7,7 +7,6 @@ from webspark.utils.json import JSONHandler, deserialize_json, serialize_json
 
 
 def test_json_serialization_deserialization():
-    """Test that serialize_json and deserialize_json work correctly."""
     data = {
         "name": "John",
         "age": 30,
@@ -23,20 +22,16 @@ def test_json_serialization_deserialization():
 
 
 def test_deserialize_json_from_string():
-    """Test deserialize_json with a string input."""
     json_string = '{"message": "Hello, World!"}'
     data = deserialize_json(json_string)
     assert data == {"message": "Hello, World!"}
 
 
 def test_serialize_non_serializable():
-    """Test serialize_json with a non-serializable object."""
-
     class NonSerializable:
         pass
 
     obj = NonSerializable()
-    # It should fall back to str(obj)
     serialized = serialize_json(obj)
     deserialized = deserialize_json(serialized)
     assert isinstance(deserialized, str)
@@ -44,11 +39,8 @@ def test_serialize_non_serializable():
 
 
 def test_deserialize_invalid_json_raises_error():
-    """Test deserialize_json with invalid json raises an exception."""
     invalid_json_bytes = b'{"key": "value"'
-    with pytest.raises(
-        ValueError
-    ):  # orjson/ujson raise ValueError, json raises JSONDecodeError (subclass)
+    with pytest.raises(ValueError):
         deserialize_json(invalid_json_bytes)
 
     invalid_json_string = '{"key": "value"'
@@ -57,9 +49,8 @@ def test_deserialize_invalid_json_raises_error():
 
 
 def test_json_handler_orjson():
-    """Test JSONHandler uses orjson if available."""
     try:
-        import orjson  # noqa
+        import orjson
     except ImportError:
         pytest.skip("orjson not installed")
 
@@ -72,10 +63,9 @@ def test_json_handler_orjson():
 
 
 def test_json_handler_ujson(monkeypatch):
-    """Test JSONHandler falls back to ujson."""
     monkeypatch.setitem(sys.modules, "orjson", None)
     try:
-        import ujson  # noqa
+        import ujson
     except ImportError:
         pytest.skip("ujson not installed")
 
@@ -88,7 +78,6 @@ def test_json_handler_ujson(monkeypatch):
 
 
 def test_json_handler_json(monkeypatch):
-    """Test JSONHandler falls back to standard json."""
     monkeypatch.setitem(sys.modules, "orjson", None)
     monkeypatch.setitem(sys.modules, "ujson", None)
 

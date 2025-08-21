@@ -29,8 +29,6 @@ from webspark.utils import HTTPException
 
 
 def test_base_field_initialization():
-    """Test BaseField initialization."""
-
     def validator_func(x):
         return x
 
@@ -52,21 +50,18 @@ def test_base_field_initialization():
 
 
 def test_base_field_bind():
-    """Test BaseField bind method."""
     field = BaseField(source_name="source")
     field.bind("field_name")
 
     assert field.field_name == "field_name"
     assert field.name == "source"
 
-    # Test without source_name
     field2 = BaseField()
     field2.bind("field_name")
     assert field2.name == "field_name"
 
 
 def test_base_field_validate_required():
-    """Test BaseField validate with required field."""
     field = BaseField(required=True)
     field.name = "test_field"
 
@@ -79,15 +74,12 @@ def test_base_field_validate_required():
 
 
 def test_base_field_validate_nullable():
-    """Test BaseField validate with nullable field."""
     field = BaseField(required=True, nullable=True)
     result = field.validate(None, {})
     assert result is None
 
 
 def test_base_field_validate_with_validators():
-    """Test BaseField validate with custom validators."""
-
     def validator(value):
         if value != "valid":
             raise ValueError("Invalid value")
@@ -102,7 +94,6 @@ def test_base_field_validate_with_validators():
 
 
 def test_base_field_to_representation():
-    """Test BaseField to_representation method."""
     field = BaseField()
     value = "test_value"
     result = field.to_representation(value, {})
@@ -110,8 +101,6 @@ def test_base_field_to_representation():
 
 
 def test_object_schema_meta():
-    """Test ObjectSchemaMeta metaclass."""
-
     class TestSchema(ObjectSchema):
         field1 = StringField()
         field2 = IntegerField()
@@ -124,8 +113,6 @@ def test_object_schema_meta():
 
 
 def test_object_schema_inheritance():
-    """Test ObjectSchema inheritance."""
-
     class BaseSchema(ObjectSchema):
         base_field = StringField()
 
@@ -137,8 +124,6 @@ def test_object_schema_inheritance():
 
 
 def test_object_schema_initialization():
-    """Test ObjectSchema initialization."""
-
     class TestSchema(ObjectSchema):
         pass
 
@@ -155,30 +140,23 @@ def test_object_schema_initialization():
 
 
 def test_object_schema_properties():
-    """Test ObjectSchema properties."""
-
     class TestSchema(ObjectSchema):
         pass
 
     schema = TestSchema()
 
-    # Test errors property
     assert schema.errors == {}
 
-    # Test validated_data property before validation
     with pytest.raises(
         AttributeError,
         match="You must call `.is_valid\\(\\)` before accessing `validated_data`\\.",
     ):
         _ = schema.validated_data
 
-    # Test serialized_data property
     assert schema.serialized_data == {}
 
 
 def test_object_schema_serialize():
-    """Test ObjectSchema serialize classmethod."""
-
     class TestSchema(ObjectSchema):
         name = StringField()
 
@@ -186,7 +164,6 @@ def test_object_schema_serialize():
             obj = obj or self.instance
             return {"name": getattr(obj, "name", None)}
 
-    # Test single object
     class TestObj:
         def __init__(self, name):
             self.name = name
@@ -195,15 +172,12 @@ def test_object_schema_serialize():
     result = TestSchema.serialize(obj)
     assert result == {"name": "test"}
 
-    # Test many objects
     objs = [TestObj("test1"), TestObj("test2")]
     result = TestSchema.serialize(objs, many=True)
     assert result == [{"name": "test1"}, {"name": "test2"}]
 
 
 def test_object_schema_validate():
-    """Test ObjectSchema validate method."""
-
     class TestSchema(ObjectSchema):
         pass
 
@@ -214,22 +188,17 @@ def test_object_schema_validate():
 
 
 def test_object_schema_is_valid_no_data():
-    """Test ObjectSchema is_valid with no data."""
-
     class TestSchema(ObjectSchema):
         pass
 
     schema = TestSchema(data=None)
     result = schema.is_valid()
 
-    # When data is None, initial_data becomes {} not None, so it's valid
     assert result is True
     assert schema.errors == {}
 
 
 def test_object_schema_is_valid_with_field_errors():
-    """Test ObjectSchema is_valid with field errors."""
-
     class TestSchema(ObjectSchema):
         required_field = StringField(required=True)
 
@@ -242,8 +211,6 @@ def test_object_schema_is_valid_with_field_errors():
 
 
 def test_object_schema_is_valid_with_custom_validation_error():
-    """Test ObjectSchema is_valid with custom validation error."""
-
     class TestSchema(ObjectSchema):
         def validate(self, data):
             raise HTTPException({"custom": ["Custom error"]}, status_code=400)
@@ -256,8 +223,6 @@ def test_object_schema_is_valid_with_custom_validation_error():
 
 
 def test_object_schema_is_valid_success():
-    """Test ObjectSchema is_valid success case."""
-
     class TestSchema(ObjectSchema):
         name = StringField()
         age = IntegerField()
@@ -271,8 +236,6 @@ def test_object_schema_is_valid_success():
 
 
 def test_object_schema_to_representation():
-    """Test ObjectSchema to_representation method."""
-
     class TestSchema(ObjectSchema):
         name = StringField()
 
@@ -288,8 +251,6 @@ def test_object_schema_to_representation():
 
 
 def test_object_schema_to_representation_no_instance():
-    """Test ObjectSchema to_representation with no instance."""
-
     class TestSchema(ObjectSchema):
         name = StringField()
 
@@ -300,7 +261,6 @@ def test_object_schema_to_representation_no_instance():
 
 
 def test_integer_field_validate():
-    """Test IntegerField validate method."""
     field = IntegerField()
     field.name = "age"
 
@@ -312,7 +272,6 @@ def test_integer_field_validate():
 
 
 def test_integer_field_validate_invalid():
-    """Test IntegerField validate with invalid value."""
     field = IntegerField()
     field.name = "age"
 
@@ -325,21 +284,18 @@ def test_integer_field_validate_invalid():
 
 
 def test_integer_field_validate_none():
-    """Test IntegerField validate with None value."""
     field = IntegerField(required=False)
     result = field.validate(None, {})
     assert result is None
 
 
 def test_integer_field_validate_with_default():
-    """Test IntegerField validate with default value."""
     field = IntegerField(default=18)
     result = field.validate(None, {})
     assert result == 18
 
 
 def test_integer_field_validate_min_value():
-    """Test IntegerField validate with min_value."""
     field = IntegerField(min_value=18)
     field.name = "age"
 
@@ -353,7 +309,6 @@ def test_integer_field_validate_min_value():
 
 
 def test_integer_field_validate_max_value():
-    """Test IntegerField validate with max_value."""
     field = IntegerField(max_value=100)
     field.name = "age"
 
@@ -367,7 +322,6 @@ def test_integer_field_validate_max_value():
 
 
 def test_float_field_validate():
-    """Test FloatField validate method."""
     field = FloatField()
     field.name = "price"
 
@@ -379,7 +333,6 @@ def test_float_field_validate():
 
 
 def test_float_field_validate_invalid():
-    """Test FloatField validate with invalid value."""
     field = FloatField()
     field.name = "price"
 
@@ -392,7 +345,6 @@ def test_float_field_validate_invalid():
 
 
 def test_float_field_validate_min_value():
-    """Test FloatField validate with min_value."""
     field = FloatField(min_value=0.0)
     field.name = "price"
 
@@ -406,7 +358,6 @@ def test_float_field_validate_min_value():
 
 
 def test_float_field_validate_max_value():
-    """Test FloatField validate with max_value."""
     field = FloatField(max_value=100.0)
     field.name = "price"
 
@@ -420,7 +371,6 @@ def test_float_field_validate_max_value():
 
 
 def test_string_field_validate():
-    """Test StringField validate method."""
     field = StringField()
     field.name = "name"
 
@@ -429,7 +379,6 @@ def test_string_field_validate():
 
 
 def test_string_field_validate_invalid():
-    """Test StringField validate with invalid value."""
     field = StringField()
     field.name = "name"
 
@@ -442,7 +391,6 @@ def test_string_field_validate_invalid():
 
 
 def test_string_field_validate_min_length():
-    """Test StringField validate with min_length."""
     field = StringField(min_length=3)
     field.name = "name"
 
@@ -456,7 +404,6 @@ def test_string_field_validate_min_length():
 
 
 def test_string_field_validate_max_length():
-    """Test StringField validate with max_length."""
     field = StringField(max_length=5)
     field.name = "name"
 
@@ -470,15 +417,12 @@ def test_string_field_validate_max_length():
 
 
 def test_boolean_field_validate():
-    """Test BooleanField validate method."""
     field = BooleanField()
     field.name = "active"
 
-    # Test boolean values
     assert field.validate(True, {}) is True
     assert field.validate(False, {}) is False
 
-    # Test string values
     assert field.validate("true", {}) is True
     assert field.validate("false", {}) is False
     assert field.validate("1", {}) is True
@@ -490,7 +434,6 @@ def test_boolean_field_validate():
 
 
 def test_boolean_field_validate_invalid():
-    """Test BooleanField validate with invalid value."""
     field = BooleanField()
     field.name = "active"
 
@@ -503,14 +446,12 @@ def test_boolean_field_validate_invalid():
 
 
 def test_boolean_field_validate_none():
-    """Test BooleanField validate with None value."""
     field = BooleanField(required=False)
     result = field.validate(None, {})
     assert result is None
 
 
 def test_list_field_validate():
-    """Test ListField validate method."""
     field = ListField()
     field.name = "items"
 
@@ -519,7 +460,6 @@ def test_list_field_validate():
 
 
 def test_list_field_validate_invalid():
-    """Test ListField validate with invalid value."""
     field = ListField()
     field.name = "items"
 
@@ -532,14 +472,12 @@ def test_list_field_validate_invalid():
 
 
 def test_list_field_validate_none():
-    """Test ListField validate with None value."""
     field = ListField(required=False)
     result = field.validate(None, {})
     assert result == []
 
 
 def test_list_field_validate_min_items():
-    """Test ListField validate with min_items."""
     field = ListField(min_items=2)
     field.name = "items"
 
@@ -553,7 +491,6 @@ def test_list_field_validate_min_items():
 
 
 def test_list_field_validate_max_items():
-    """Test ListField validate with max_items."""
     field = ListField(max_items=3)
     field.name = "items"
 
@@ -567,7 +504,6 @@ def test_list_field_validate_max_items():
 
 
 def test_list_field_validate_with_child_field():
-    """Test ListField validate with child field."""
     field = ListField(child=IntegerField())
     field.name = "numbers"
 
@@ -576,7 +512,6 @@ def test_list_field_validate_with_child_field():
 
 
 def test_list_field_validate_with_child_field_errors():
-    """Test ListField validate with child field errors."""
     field = ListField(child=IntegerField())
     field.name = "numbers"
 
@@ -588,14 +523,12 @@ def test_list_field_validate_with_child_field_errors():
 
 
 def test_list_field_to_representation():
-    """Test ListField to_representation method."""
     field = ListField()
     result = field.to_representation([1, 2, 3], {})
     assert result == [1, 2, 3]
 
 
 def test_list_field_to_representation_with_child():
-    """Test ListField to_representation with child field."""
     child_field = Mock()
     child_field.to_representation.return_value = "mocked"
     field = ListField(child=child_field)
@@ -606,14 +539,12 @@ def test_list_field_to_representation_with_child():
 
 
 def test_list_field_to_representation_none():
-    """Test ListField to_representation with None value."""
     field = ListField()
     result = field.to_representation(None, {})
     assert result is None
 
 
 def test_datetime_field_validate():
-    """Test DateTimeField validate method."""
     field = DateTimeField()
     field.name = "created_at"
 
@@ -624,7 +555,6 @@ def test_datetime_field_validate():
 
 
 def test_datetime_field_validate_datetime_object():
-    """Test DateTimeField validate with datetime object."""
     field = DateTimeField()
     dt = datetime(2023, 1, 1, 12, 0, 0)
     result = field.validate(dt, {})
@@ -632,7 +562,6 @@ def test_datetime_field_validate_datetime_object():
 
 
 def test_datetime_field_validate_invalid():
-    """Test DateTimeField validate with invalid value."""
     field = DateTimeField()
     field.name = "created_at"
 
@@ -648,15 +577,12 @@ def test_datetime_field_validate_invalid():
 
 
 def test_datetime_field_auto_now():
-    """Test DateTimeField with auto_now."""
     field = DateTimeField(auto_now=True)
     result = field.validate("2023-01-01T12:00:00", {})
     assert isinstance(result, datetime)
-    # Should return current time, not the provided value
 
 
 def test_uuid_field_validate():
-    """Test UUIDField validate method."""
     field = UUIDField()
     field.name = "id"
 
@@ -667,7 +593,6 @@ def test_uuid_field_validate():
 
 
 def test_uuid_field_validate_invalid():
-    """Test UUIDField validate with invalid value."""
     field = UUIDField()
     field.name = "id"
 
@@ -680,7 +605,6 @@ def test_uuid_field_validate_invalid():
 
 
 def test_email_field_validate():
-    """Test EmailField validate method."""
     field = EmailField()
     field.name = "email"
 
@@ -689,7 +613,6 @@ def test_email_field_validate():
 
 
 def test_email_field_validate_invalid():
-    """Test EmailField validate with invalid value."""
     field = EmailField()
     field.name = "email"
 
@@ -702,7 +625,6 @@ def test_email_field_validate_invalid():
 
 
 def test_url_field_validate():
-    """Test URLField validate method."""
     field = URLField()
     field.name = "website"
 
@@ -711,7 +633,6 @@ def test_url_field_validate():
 
 
 def test_url_field_validate_invalid():
-    """Test URLField validate with invalid value."""
     field = URLField()
     field.name = "website"
 
@@ -724,7 +645,6 @@ def test_url_field_validate_invalid():
 
 
 def test_url_field_validate_with_schemes():
-    """Test URLField validate with specific schemes."""
     field = URLField(schemes=["https"])
     field.name = "website"
 
@@ -738,8 +658,6 @@ def test_url_field_validate_with_schemes():
 
 
 def test_enum_field_validate_with_enum():
-    """Test EnumField validate with Enum type."""
-
     class Color(Enum):
         RED = "red"
         GREEN = "green"
@@ -751,13 +669,11 @@ def test_enum_field_validate_with_enum():
     result = field.validate("red", {})
     assert result == Color.RED
 
-    # Test with enum value (should fail as it's not in choices)
     with pytest.raises(HTTPException):
         field.validate(Color.GREEN, {})
 
 
 def test_enum_field_validate_with_list():
-    """Test EnumField validate with list of choices."""
     field = EnumField(["red", "green", "blue"])
     field.name = "color"
 
@@ -766,7 +682,6 @@ def test_enum_field_validate_with_list():
 
 
 def test_enum_field_validate_invalid():
-    """Test EnumField validate with invalid value."""
     field = EnumField(["red", "green", "blue"])
     field.name = "color"
 
@@ -779,7 +694,6 @@ def test_enum_field_validate_invalid():
 
 
 def test_decimal_field_validate():
-    """Test DecimalField validate method."""
     field = DecimalField()
     field.name = "price"
 
@@ -789,7 +703,6 @@ def test_decimal_field_validate():
 
 
 def test_decimal_field_validate_invalid():
-    """Test DecimalField validate with invalid value."""
     field = DecimalField()
     field.name = "price"
 
@@ -802,7 +715,6 @@ def test_decimal_field_validate_invalid():
 
 
 def test_decimal_field_validate_max_digits():
-    """Test DecimalField validate with max_digits."""
     field = DecimalField(max_digits=5)
     field.name = "price"
 
@@ -816,7 +728,6 @@ def test_decimal_field_validate_max_digits():
 
 
 def test_decimal_field_validate_decimal_places():
-    """Test DecimalField validate with decimal_places."""
     field = DecimalField(decimal_places=2)
     field.name = "price"
 
@@ -830,7 +741,6 @@ def test_decimal_field_validate_decimal_places():
 
 
 def test_regex_field_validate():
-    """Test RegexField validate method."""
     field = RegexField(r"^\d{3}-\d{3}-\d{4}$")
     field.name = "phone"
 
@@ -839,7 +749,6 @@ def test_regex_field_validate():
 
 
 def test_regex_field_validate_invalid():
-    """Test RegexField validate with invalid value."""
     field = RegexField(r"^\d{3}-\d{3}-\d{4}$")
     field.name = "phone"
 
@@ -855,7 +764,6 @@ def test_regex_field_validate_invalid():
 
 
 def test_method_field_validate():
-    """Test the method field validation."""
     schema = Mock()
     schema.get_method = lambda data: data["test"]
 
@@ -866,7 +774,6 @@ def test_method_field_validate():
 
 
 def test_method_field_raise_for_no_method():
-    """Test MethodField raise for no method."""
     field = MethodField(method_name="non_existent_method")
     field.schema = object()
     with pytest.raises(AttributeError):
@@ -874,7 +781,6 @@ def test_method_field_raise_for_no_method():
 
 
 def test_method_field_to_representation():
-    """Test MethodField to_representation method."""
     obj = Mock()
     obj.some_attr = "value"
 
@@ -889,8 +795,6 @@ def test_method_field_to_representation():
 
 
 def test_serializer_field_validate_single():
-    """Test SerializerField validate with single object."""
-
     class NestedSchema(ObjectSchema):
         name = StringField()
 
@@ -903,8 +807,6 @@ def test_serializer_field_validate_single():
 
 
 def test_serializer_field_validate_single_invalid():
-    """Test SerializerField validate with invalid single object."""
-
     class NestedSchema(ObjectSchema):
         name = StringField(required=True)
 
@@ -920,8 +822,6 @@ def test_serializer_field_validate_single_invalid():
 
 
 def test_serializer_field_validate_many():
-    """Test SerializerField validate with many objects."""
-
     class NestedSchema(ObjectSchema):
         name = StringField()
 
@@ -934,8 +834,6 @@ def test_serializer_field_validate_many():
 
 
 def test_serializer_field_validate_many_invalid():
-    """Test SerializerField validate with invalid many objects."""
-
     class NestedSchema(ObjectSchema):
         name = StringField(required=True)
 
@@ -951,8 +849,6 @@ def test_serializer_field_validate_many_invalid():
 
 
 def test_serializer_field_validate_many_not_list():
-    """Test SerializerField validate with many but not a list."""
-
     class NestedSchema(ObjectSchema):
         name = StringField()
 
@@ -969,8 +865,6 @@ def test_serializer_field_validate_many_not_list():
 
 
 def test_serializer_field_validate_none_not_required():
-    """Test SerializerField validate with None when not required."""
-
     class NestedSchema(ObjectSchema):
         name = StringField()
 
@@ -980,8 +874,6 @@ def test_serializer_field_validate_none_not_required():
 
 
 def test_serializer_field_to_representation_single():
-    """Test SerializerField to_representation with single object."""
-
     class NestedSchema(ObjectSchema):
         name = StringField()
 
@@ -998,8 +890,6 @@ def test_serializer_field_to_representation_single():
 
 
 def test_serializer_field_to_representation_many():
-    """Test SerializerField to_representation with many objects."""
-
     class NestedSchema(ObjectSchema):
         name = StringField()
 
@@ -1016,8 +906,6 @@ def test_serializer_field_to_representation_many():
 
 
 def test_serializer_field_to_representation_none():
-    """Test SerializerField to_representation with None."""
-
     class NestedSchema(ObjectSchema):
         name = StringField()
 
@@ -1033,15 +921,12 @@ def test_serializer_field_to_representation_none():
 
 
 def test_undefined_object():
-    """Test undefined object."""
     assert undefined is not None
     assert undefined is not False
     assert undefined is not True
 
 
 def test_object_schema_full_integration():
-    """Test ObjectSchema full integration with nested fields."""
-
     class UserSchema(ObjectSchema):
         name = StringField(max_length=50)
         age = IntegerField(min_value=0, max_value=150)
@@ -1071,14 +956,12 @@ def test_object_schema_full_integration():
     assert schema.validated_data["name"] == "John Doe"
     assert schema.validated_data["age"] == 25
     assert schema.validated_data["email"] == "john@example.com"
-    assert schema.validated_data["is_active"] is True  # default value
+    assert schema.validated_data["is_active"] is True
     assert schema.validated_data["tags"] == ["developer", "python"]
     assert isinstance(schema.validated_data["created_at"], datetime)
 
 
 def test_object_schema_custom_validation_error():
-    """Test ObjectSchema with custom validation error."""
-
     class UserSchema(ObjectSchema):
         age = IntegerField()
 

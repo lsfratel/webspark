@@ -15,27 +15,23 @@ from webspark.http.cookie import (
 
 
 def test_make_expires_with_datetime():
-    """Test _make_expires with datetime object."""
     dt = datetime(2023, 12, 25, 10, 30, 45)
     result = _make_expires(dt)
     assert result == "Mon, 25-Dec-2023 10:30:45 GMT"
 
 
 def test_make_expires_with_int():
-    """Test _make_expires with integer (seconds)."""
     result = _make_expires(3600)
     assert isinstance(result, str)
     assert "GMT" in result
 
 
 def test_make_expires_with_invalid_type():
-    """Test _make_expires with invalid type."""
     with pytest.raises(ValueError, match="Date must be datetime or int"):
         _make_expires("invalid")
 
 
 def test_sign_and_verify():
-    """Test signing and verification of cookie data."""
     data = "test_data"
     signature = _sign(data, "secret1")
     assert isinstance(signature, str)
@@ -44,19 +40,16 @@ def test_sign_and_verify():
 
 
 def test_verify_with_invalid_signature():
-    """Test verification with invalid signature."""
     assert _verify("test_data", "invalid_signature", ["secret1"]) is False
 
 
 def test_verify_with_multiple_secrets():
-    """Test verification with multiple secrets."""
     data = "test_data"
     signature = _sign(data, "secret2")
     assert _verify(data, signature, ["secret1", "secret2"]) is True
 
 
 def test_serialize_without_secrets():
-    """Test serialization without signing."""
     data = {"key": "value", "number": 42}
     serialized = serialize_cookie("test_cookie", data)
     assert isinstance(serialized, str)
@@ -64,7 +57,6 @@ def test_serialize_without_secrets():
 
 
 def test_serialize_with_custom_options():
-    """Test serialization with custom options."""
     data = {"key": "value"}
     serialized = serialize_cookie(
         "test_cookie",
@@ -83,29 +75,24 @@ def test_serialize_with_custom_options():
 
 
 def test_serialize_with_expires_datetime():
-    """Test serialization with datetime expires."""
     dt = datetime(2023, 12, 25, 10, 30, 45)
     serialized = serialize_cookie("test_cookie", {"key": "value"}, expires=dt)
     assert "expires=mon, 25-dec-2023 10:30:45 gmt" in serialized.lower()
 
 
 def test_serialize_with_expires_int():
-    """Test serialization with integer expires."""
     serialized = serialize_cookie("test_cookie", {"key": "value"}, expires=3600)
     assert "expires=" in serialized.lower()
 
 
 def test_serialize_with_secrets():
-    """Test serialization with signing."""
     data = {"key": "value"}
     serialized = serialize_cookie("test_cookie", data, secrets=["secret1"])
     assert "test_cookie" in serialized
-    # Check that the value is signed (contains a dot)
     assert "." in serialized.split("test_cookie=")[1]
 
 
 def test_parse_without_secrets():
-    """Test parsing unsigned cookie."""
     data = {"key": "value", "number": 42}
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = json.dumps(data)
@@ -116,7 +103,6 @@ def test_parse_without_secrets():
 
 
 def test_parse_with_secrets():
-    """Test parsing signed cookie."""
     data = {"key": "value"}
     json_data = json.dumps(data)
     signature = _sign(json_data, "secret1")
@@ -132,7 +118,6 @@ def test_parse_with_secrets():
 
 
 def test_parse_with_invalid_json():
-    """Test parsing with invalid JSON."""
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = "invalid_json"
     cookie_header = cookie_obj.output(header="", sep="").strip()
@@ -142,7 +127,6 @@ def test_parse_with_invalid_json():
 
 
 def test_parse_with_invalid_signature():
-    """Test parsing with invalid signature."""
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = "dGVzdF9kYXRh.invalid_signature"
     cookie_header = cookie_obj.output(header="", sep="").strip()
@@ -152,7 +136,6 @@ def test_parse_with_invalid_signature():
 
 
 def test_parse_with_malformed_signed_cookie():
-    """Test parsing with malformed signed cookie (missing signature)."""
     cookie_obj = SimpleCookie()
     cookie_obj["test_cookie"] = "dGVzdF9kYXRh"
     cookie_header = cookie_obj.output(header="", sep="").strip()
@@ -162,19 +145,16 @@ def test_parse_with_malformed_signed_cookie():
 
 
 def test_parse_none_header():
-    """Test parsing with None header."""
     parsed = parse_cookie(None)
     assert parsed == {}
 
 
 def test_parse_empty_header():
-    """Test parsing with empty header."""
     parsed = parse_cookie("")
     assert parsed == {}
 
 
 def test_serialize_with_multiple_secrets_random_choice():
-    """Test that serialization uses random secret from list."""
     secrets = ["secret1", "secret2", "secret3"]
     data = {"key": "value"}
 
@@ -190,7 +170,6 @@ def test_serialize_with_multiple_secrets_random_choice():
 
 
 def test_complex_data_serialization():
-    """Test serialization of complex data structures."""
     complex_data = {
         "string": "value",
         "number": 42,
@@ -205,7 +184,6 @@ def test_complex_data_serialization():
 
 
 def test_parse_signed_cookie_with_wrong_secret():
-    """Test parsing signed cookie with wrong secret."""
     data = {"key": "value"}
     serialized = serialize_cookie("test_cookie", data, secrets=["secret1"])
 
@@ -214,7 +192,6 @@ def test_parse_signed_cookie_with_wrong_secret():
 
 
 def test_empty_data_serialization():
-    """Test serialization of empty data."""
     serialized = serialize_cookie("test_cookie", {})
     assert "test_cookie" in serialized
     parsed = parse_cookie(serialized)
@@ -222,7 +199,6 @@ def test_empty_data_serialization():
 
 
 def test_none_data_serialization():
-    """Test serialization of None data."""
     serialized = serialize_cookie("test_cookie", None)
     assert "test_cookie" in serialized
     parsed = parse_cookie(serialized)
@@ -230,7 +206,6 @@ def test_none_data_serialization():
 
 
 def test_parse_with_valid_simple_cookie():
-    """Test parsing a valid simple cookie created by serialize_cookie."""
     data = {"user_id": 123, "username": "testuser"}
     serialized = serialize_cookie("test_cookie", data)
     parsed = parse_cookie(serialized)
@@ -238,7 +213,6 @@ def test_parse_with_valid_simple_cookie():
 
 
 def test_parse_with_valid_signed_cookie():
-    """Test parsing a valid signed cookie created by serialize_cookie."""
     data = {"user_id": 123, "username": "testuser"}
     serialized = serialize_cookie("test_cookie", data, secrets=["my_secret"])
     parsed = parse_cookie(serialized, secrets=["my_secret"])
