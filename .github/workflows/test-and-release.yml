@@ -17,6 +17,8 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
       - name: Install dependencies
         run: pip install pytest pytest-cov orjson ujson
@@ -32,8 +34,7 @@ jobs:
   release:
     needs: test
     if: >-
-      needs.test.result == 'success' &&
-      contains(github.event.commits[*].modified, 'webspark/__init__.py')
+      needs.test.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
