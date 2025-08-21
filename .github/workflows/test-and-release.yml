@@ -1,0 +1,75 @@
+name: Test and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run tests and collect coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+
+      - name: Install dependencies
+        run: pip install pytest pytest-cov orjson ujson
+
+      - name: Run tests
+        run: pytest --cov --cov-branch --cov-report=xml
+
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  release:
+    needs: test
+    if: >-
+      needs.test.result == 'success' &&
+      contains(github.event.commits[*].modified, 'webspark/__init__.py')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from __init__.py
+        id: extract_version
+        run: |
+          VERSION=$(grep "__version__" webspark/__init__.py | awk -F'"' '{print $2}')
+          echo "Extracted version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          TAG="v${{ steps.extract_version.outputs.version }}"
+          if git tag --list "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists. Skipping."
+            echo "should_tag=false" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $TAG does not exist. Creating."
+            echo "should_tag=true" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.should_tag == 'true'
+        run: |
+          TAG="v${{ steps.extract_version.outputs.version }}"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

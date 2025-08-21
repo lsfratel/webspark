@@ -1,6 +1,6 @@
 [project]
 name = "webspark"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A lightweight and minimalist Python web framework for building fast WSGI applications and APIs."
 authors = [
   {name = "Lucas Santana", email = "lsfratel@gmail.com"},
@@ -28,9 +28,13 @@ build-backend = "pdm.backend"
 [tool.pdm]
 distribution = true
 
+[tool.pdm.version]
+source = "file"
+path = "webspark/__init__.py"
 
 [tool.pdm.scripts]
 test = "pytest --cov=webspark"
+
 
 [tool.ruff]
 exclude = [
