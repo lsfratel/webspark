@@ -6,7 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from webspark.core.schema import (
+from webspark.schema.fields import (
+    UNDEFINED,
     BaseField,
     BooleanField,
     DateTimeField,
@@ -17,14 +18,13 @@ from webspark.core.schema import (
     IntegerField,
     ListField,
     MethodField,
-    ObjectSchema,
     RegexField,
     SerializerField,
     StringField,
     URLField,
     UUIDField,
-    undefined,
 )
+from webspark.schema.object_schema import ObjectSchema
 from webspark.utils import HTTPException
 
 
@@ -66,7 +66,7 @@ def test_base_field_validate_required():
     field.name = "test_field"
 
     with pytest.raises(HTTPException) as exc_info:
-        field.validate(undefined, {})
+        field.validate(UNDEFINED, {})
 
     assert exc_info.value.status_code == 400
     assert "test_field" in exc_info.value.details
@@ -80,7 +80,7 @@ def test_base_field_validate_nullable():
 
 
 def test_base_field_validate_with_validators():
-    def validator(value):
+    def validator(value, field):
         if value != "valid":
             raise ValueError("Invalid value")
         return value
@@ -285,13 +285,15 @@ def test_integer_field_validate_invalid():
 
 def test_integer_field_validate_none():
     field = IntegerField(required=False)
-    result = field.validate(None, {})
+    field.name = "field"
+    result = field.validate(UNDEFINED, {})
     assert result is None
 
 
 def test_integer_field_validate_with_default():
     field = IntegerField(default=18)
-    result = field.validate(None, {})
+    field.name = "field"
+    result = field.validate(UNDEFINED, {})
     assert result == 18
 
 
@@ -412,7 +414,6 @@ def test_string_field_validate_max_length():
 
     with pytest.raises(HTTPException) as exc_info:
         field.validate("John Doe", {})
-
     assert "Cannot be longer than 5 characters" in exc_info.value.details["name"][0]
 
 
@@ -447,7 +448,8 @@ def test_boolean_field_validate_invalid():
 
 def test_boolean_field_validate_none():
     field = BooleanField(required=False)
-    result = field.validate(None, {})
+    field.name = "field"
+    result = field.validate(UNDEFINED, {})
     assert result is None
 
 
@@ -473,8 +475,9 @@ def test_list_field_validate_invalid():
 
 def test_list_field_validate_none():
     field = ListField(required=False)
-    result = field.validate(None, {})
-    assert result == []
+    field.name = "field"
+    result = field.validate(UNDEFINED, {})
+    assert result is None
 
 
 def test_list_field_validate_min_items():
@@ -776,7 +779,8 @@ def test_method_field_validate():
 def test_method_field_raise_for_no_method():
     field = MethodField(method_name="non_existent_method")
     field.schema = object()
-    with pytest.raises(AttributeError):
+
+    with pytest.raises(HTTPException):
         field.validate(None, {})
 
 
@@ -869,7 +873,8 @@ def test_serializer_field_validate_none_not_required():
         name = StringField()
 
     field = SerializerField(NestedSchema, required=False)
-    result = field.validate(None, {})
+    field.name = "nested"
+    result = field.validate(UNDEFINED, {})
     assert result is None
 
 
@@ -918,12 +923,6 @@ def test_serializer_field_to_representation_none():
     field = SerializerField(NestedSchema)
     result = field.to_representation(None, {})
     assert result is None
-
-
-def test_undefined_object():
-    assert undefined is not None
-    assert undefined is not False
-    assert undefined is not True
 
 
 def test_object_schema_full_integration():

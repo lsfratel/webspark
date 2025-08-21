@@ -10,8 +10,8 @@ import sqlite3
 from contextlib import contextmanager
 
 from webspark.core import View, WebSpark, path
-from webspark.core.schema import IntegerField, ObjectSchema, StringField
 from webspark.http import JsonResponse
+from webspark.schema import IntegerField, ObjectSchema, StringField
 from webspark.utils import HTTPException
 
 # Database configuration

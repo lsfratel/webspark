@@ -7,14 +7,14 @@ This example demonstrates WebSpark's schema validation capabilities:
 """
 
 from webspark.core import View, WebSpark, path
-from webspark.core.schema import (
+from webspark.http import JsonResponse
+from webspark.schema import (
     BooleanField,
     EmailField,
     IntegerField,
     ObjectSchema,
     StringField,
 )
-from webspark.http import JsonResponse
 from webspark.utils import HTTPException
 
 

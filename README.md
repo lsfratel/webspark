@@ -144,7 +144,7 @@ Ensure your incoming data is valid by defining schemas. If validation fails, Web
 Define a schema by inheriting from `ObjectSchema` and adding fields.
 
 ```python
-from webspark.core.schema import ObjectSchema, StringField, IntegerField, EmailField
+from webspark.schema import ObjectSchema, StringField, IntegerField, EmailField
 
 class UserSchema(ObjectSchema):
     name = StringField(required=True, max_length=100)

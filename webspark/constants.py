@@ -1,3 +1,5 @@
+UNDEFINED = object()
+
 HTTP_METHODS = (
     "get",
     "head",
