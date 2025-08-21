@@ -216,8 +216,7 @@ def test_exception_handler_catches_http_exception():
     response_body = b"".join(response_iter).decode()
 
     assert start_response.status.startswith("418 I'm a teapot")
-    assert '"code":"I_AM_A_TEAPOT"' in response_body
-    assert '"message":"Test error"' in response_body
+    assert 'Test error' in response_body
 
 
 def test_custom_exception_handler():

@@ -24,6 +24,7 @@ STATUS_CODE = {
     101: "101 Switching Protocols",
     102: "102 Processing",
     103: "103 Early Hints",
+
     # 2xx: Success
     200: "200 OK",
     201: "201 Created",
@@ -35,6 +36,7 @@ STATUS_CODE = {
     207: "207 Multi-Status",
     208: "208 Already Reported",
     226: "226 IM Used",
+
     # 3xx: Redirection
     300: "300 Multiple Choices",
     301: "301 Moved Permanently",
@@ -44,6 +46,7 @@ STATUS_CODE = {
     305: "305 Use Proxy",
     307: "307 Temporary Redirect",
     308: "308 Permanent Redirect",
+
     # 4xx: Client Error
     400: "400 Bad Request",
     401: "401 Unauthorized",
@@ -74,6 +77,7 @@ STATUS_CODE = {
     429: "429 Too Many Requests",
     431: "431 Request Header Fields Too Large",
     451: "451 Unavailable For Legal Reasons",
+
     # 5xx: Server Error
     500: "500 Internal Server Error",
     501: "501 Not Implemented",
@@ -86,85 +90,4 @@ STATUS_CODE = {
     508: "508 Loop Detected",
     510: "510 Not Extended",
     511: "511 Network Authentication Required",
-}
-
-ERROR_CONVENTIONS = {
-    # 4xx — Client Errors
-    400: {"code": "BAD_REQUEST", "message": "Invalid request."},
-    401: {"code": "UNAUTHORIZED", "message": "Authentication required or invalid."},
-    402: {"code": "PAYMENT_REQUIRED", "message": "Payment required."},
-    403: {
-        "code": "FORBIDDEN",
-        "message": "You do not have permission to perform this action.",
-    },
-    404: {"code": "NOT_FOUND", "message": "Resource not found."},
-    405: {
-        "code": "METHOD_NOT_ALLOWED",
-        "message": "HTTP method not allowed for this resource.",
-    },
-    406: {"code": "NOT_ACCEPTABLE", "message": "Response format not acceptable."},
-    407: {
-        "code": "PROXY_AUTH_REQUIRED",
-        "message": "Proxy authentication is required.",
-    },
-    408: {"code": "REQUEST_TIMEOUT", "message": "Request timed out."},
-    409: {
-        "code": "CONFLICT",
-        "message": "Conflict with the current state of the resource.",
-    },
-    410: {"code": "GONE", "message": "Resource is no longer available."},
-    411: {"code": "LENGTH_REQUIRED", "message": "Content-Length header is required."},
-    412: {"code": "PRECONDITION_FAILED", "message": "Preconditions not met."},
-    413: {"code": "PAYLOAD_TOO_LARGE", "message": "Payload too large."},
-    414: {"code": "URI_TOO_LONG", "message": "URI too long."},
-    415: {"code": "UNSUPPORTED_MEDIA_TYPE", "message": "Unsupported media type."},
-    416: {"code": "RANGE_NOT_SATISFIABLE", "message": "Byte range not satisfiable."},
-    417: {
-        "code": "EXPECTATION_FAILED",
-        "message": "Expectation in header could not be met.",
-    },
-    418: {"code": "I_AM_A_TEAPOT", "message": "I am a teapot."},
-    421: {
-        "code": "MISDIRECTED_REQUEST",
-        "message": "Request directed to the wrong server.",
-    },
-    422: {"code": "UNPROCESSABLE_ENTITY", "message": "Invalid semantic entity."},
-    423: {"code": "LOCKED", "message": "Resource locked."},
-    424: {"code": "FAILED_DEPENDENCY", "message": "Failed dependency."},
-    425: {"code": "TOO_EARLY", "message": "Too early to process; try again."},
-    426: {"code": "UPGRADE_REQUIRED", "message": "Protocol upgrade required."},
-    428: {"code": "PRECONDITION_REQUIRED", "message": "Precondition required."},
-    429: {
-        "code": "TOO_MANY_REQUESTS",
-        "message": "Too many requests; try again later.",
-    },
-    431: {
-        "code": "REQUEST_HEADER_FIELDS_TOO_LARGE",
-        "message": "Request header fields too large.",
-    },
-    451: {
-        "code": "UNAVAILABLE_FOR_LEGAL_REASONS",
-        "message": "Unavailable for legal reasons.",
-    },
-    # 5xx — Server Errors
-    500: {"code": "INTERNAL_ERROR", "message": "Internal error. Please try again."},
-    501: {"code": "NOT_IMPLEMENTED", "message": "Functionality not implemented."},
-    502: {"code": "BAD_GATEWAY", "message": "Bad gateway."},
-    503: {
-        "code": "SERVICE_UNAVAILABLE",
-        "message": "Service unavailable. Please try again later.",
-    },
-    504: {"code": "GATEWAY_TIMEOUT", "message": "Gateway timeout."},
-    505: {
-        "code": "HTTP_VERSION_NOT_SUPPORTED",
-        "message": "HTTP version not supported.",
-    },
-    506: {"code": "VARIANT_ALSO_NEGOTIATES", "message": "Content negotiation failed."},
-    507: {"code": "INSUFFICIENT_STORAGE", "message": "Insufficient storage."},
-    508: {"code": "LOOP_DETECTED", "message": "Loop detected during processing."},
-    510: {"code": "NOT_EXTENDED", "message": "Policy extensions required."},
-    511: {
-        "code": "NETWORK_AUTH_REQUIRED",
-        "message": "Network authentication required.",
-    },
 }

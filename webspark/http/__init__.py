@@ -6,7 +6,6 @@ from .response import (
     RedirectResponse,
     Response,
     StreamResponse,
-    SuccessResponse,
     TextResponse,
 )
 
@@ -17,7 +16,6 @@ __all__ = [
     "HTMLResponse",
     "MultipartParser",
     "StreamResponse",
-    "SuccessResponse",
     "TextResponse",
     "RedirectResponse",
 ]

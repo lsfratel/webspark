@@ -575,33 +575,3 @@ class StreamResponse(Response):
         status_str = STATUS_CODE.get(self.status, f"{self.status} Unknown")
         headers_list = list(self.headers.items())
         return status_str, headers_list, self.body
-
-
-def SuccessResponse(
-    data: Any, status: int = 200, headers: dict[str, str] | None = None
-) -> JsonResponse:
-    """Create a standardized success JSON response.
-
-    This utility function creates a JsonResponse with a standardized
-    success format that includes a success flag and wrapped data.
-
-    Example:
-        response = SuccessResponse({"user_id": 123, "username": "john_doe"})
-        # Creates JSON: {"success": true, "data": {"user_id": 123, "username": "john_doe"}}
-
-    Args:
-        data: The data to wrap in the success response.
-        status: HTTP status code (default: 200).
-        headers: Additional headers.
-
-    Returns:
-        JsonResponse: A JSON response with success structure.
-    """
-    return JsonResponse(
-        {
-            "success": True,
-            "data": data,
-        },
-        status=status,
-        headers=headers,
-    )

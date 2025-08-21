@@ -9,9 +9,8 @@ if TYPE_CHECKING:
     from .plugin import Plugin
     from .router import path
 
-from ..constants import ERROR_CONVENTIONS
 from ..http.request import Request
-from ..http.response import JsonResponse, Response
+from ..http.response import Response, TextResponse
 from ..utils import HTTPException
 from .router import Router
 
@@ -206,41 +205,10 @@ class WebSpark:
         raise HTTPException(f"Host '{host}' not allowed.", status_code=400)
 
     def default_exception_handler(self, _: Request, exc: Exception):
-        """Default exception handler for unhandled exceptions.
-
-        This method generates a standardized JSON error response for any
-        unhandled exceptions that occur during request processing. It uses
-        the framework's error conventions to provide consistent error messages.
-
-        Args:
-            _: Request object (unused).
-            exc: Exception that occurred.
-
-        Returns:
-            JsonResponse: Standardized error response.
-        """
-        status_code = getattr(exc, "status_code", 500)
-        details = getattr(exc, "details", None)
-
-        base = ERROR_CONVENTIONS.get(
-            status_code,
-            {"code": "UNKNOWN_ERROR", "message": "An unknown error occurred."},
-        )
-
-        error = {"code": base["code"], "message": base["message"]}
-
-        if details:
-            if isinstance(details, dict):
-                error["details"] = details
-            else:
-                error["message"] = details
-
-        return JsonResponse(
-            {
-                "success": False,
-                "error": error,
-            },
-            status=status_code,
+        message = getattr(exc, "details", "Internal error. Please try again.")
+        satus = getattr(exc, "status_code", 400)
+        return TextResponse(
+            str(message) if not isinstance(message, str) else message, status=satus
         )
 
     def dispatch_request(self, request: Request):

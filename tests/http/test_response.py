@@ -9,7 +9,6 @@ from webspark.http.response import (
     RedirectResponse,
     Response,
     StreamResponse,
-    SuccessResponse,
     TextResponse,
 )
 from webspark.utils.exceptions import HTTPException
@@ -267,19 +266,6 @@ def test_stream_response_as_wsgi():
 
     assert status_str == "200 OK"
     assert body_iter == [content]
-
-
-def test_success_response():
-    data = {"id": 1, "name": "Test"}
-    response = SuccessResponse(data, status=201)
-
-    assert isinstance(response, JsonResponse)
-    assert response.status == 201
-    assert response.headers["content-type"] == "application/json; charset=utf-8"
-
-    body_bytes = response._body_bytes
-    decoded_data = json.loads(body_bytes.decode("utf-8"))
-    assert decoded_data == {"success": True, "data": data}
 
 
 def test_response_as_wsgi_with_unknown_status():
