@@ -166,32 +166,11 @@ def test_router_parse_with_regex_pattern():
     assert compiled_pattern is regex_pattern
 
 
-def test_router_cache_plugins():
-    router = Router()
-
-    plugin1 = Mock()
-    plugin2 = Mock()
-
-    view = Mock()
-
-    plugin1.apply.return_value = Mock()
-    plugin2.apply.return_value = Mock()
-
-    plugin1.apply.return_value = plugin2.apply.return_value
-    plugin2.apply.return_value = view
-
-    cached_view = router.cache_plugins(view, [plugin1, plugin2])
-
-    plugin1.apply.assert_called_once_with(view)
-    plugin2.apply.assert_called_once_with(plugin1.apply.return_value)
-    assert cached_view is view
-
-
 def test_router_add_route():
     router = Router()
     view = MockView("TestView", ["get", "post"])
 
-    router.add_route("/api/users", view)
+    router.add_route(path("/api/users", view=view))
 
     assert "get" in router.routes
     assert "post" in router.routes
@@ -204,23 +183,11 @@ def test_router_add_route():
     assert route.keys == []
 
 
-def test_router_add_route_with_plugins():
-    router = Router()
-    view = MockView("TestView", ["get"])
-
-    plugin = Mock()
-    plugin.apply.return_value = view
-
-    router.add_route("/api/users", view, [plugin])
-
-    plugin.apply.assert_called_once_with(view)
-
-
 def test_router_match_static_route():
     router = Router()
     view = MockView("StaticView", ["get"])
 
-    router.add_route("/api/users", view)
+    router.add_route(path("/api/users", view=view))
 
     params, route = router.match("get", "/api/users")
 
@@ -232,7 +199,7 @@ def test_router_match_dynamic_route():
     router = Router()
     view = MockView("DynamicView", ["get"])
 
-    router.add_route("/api/users/:id", view)
+    router.add_route(path("/api/users/:id", view=view))
 
     params, route = router.match("get", "/api/users/123")
 
@@ -244,7 +211,7 @@ def test_router_match_wildcard_route():
     router = Router()
     view = MockView("WildcardView", ["get"])
 
-    router.add_route("/api/users/*", view)
+    router.add_route(path("/api/users/*", view=view))
 
     params, route = router.match("get", "/api/users/123/posts/456")
 
@@ -257,8 +224,8 @@ def test_router_match_optional_parameter():
     view1 = MockView("OptionalView", ["get"])
     view2 = MockView("StaticView", ["get"])
 
-    router.add_route("/api/users/:id?", view1)
-    router.add_route("/api/users", view2)
+    router.add_route(path("/api/users/:id?", view=view1))
+    router.add_route(path("/api/users", view=view2))
 
     params, route = router.match("get", "/api/users/123")
     assert params == {"id": "123"}
@@ -420,58 +387,6 @@ def test_path_repr():
     assert "children=" in repr_str
 
 
-def test_router_route_priority_static():
-    router = Router()
-
-    route = Mock()
-    route.keys = []
-    route.pattern = "/api/users"
-
-    priority = router._route_priority(route)
-    assert priority == 0
-
-
-def test_router_route_priority_dynamic():
-    router = Router()
-
-    route = Mock()
-    route.keys = ["id"]
-    route.pattern = "/api/users/:id"
-
-    priority = router._route_priority(route)
-    assert priority > 0
-
-
-def test_router_route_priority_optional():
-    router = Router()
-
-    route = Mock()
-    route.keys = ["id"]
-    route.pattern = "/api/users/:id?"
-
-    priority = router._route_priority(route)
-    assert priority > 0
-
-
-def test_router_add_route_sorting():
-    router = Router()
-    static_view = MockView("StaticView", ["get"])
-    dynamic_view = MockView("DynamicView", ["get"])
-
-    router.add_route("/api/users/:id", dynamic_view)
-    router.add_route("/api/users", static_view)
-
-    routes = router.routes["get"]
-    assert routes[0].pattern == "/api/users/:id"
-    assert routes[1].pattern == "/api/users"
-
-    router.sort_routes()
-
-    routes = router.routes["get"]
-    assert routes[0].pattern == "/api/users"
-    assert routes[1].pattern == "/api/users/:id"
-
-
 def test_router_parse_complex_pattern():
     router = Router()
     keys, compiled_pattern = router.parse("/api/users/:id/posts/:post_id?")
@@ -485,7 +400,7 @@ def test_router_match_complex_pattern():
     router = Router()
     view = MockView("ComplexView", ["get"])
 
-    router.add_route("/api/users/:id/posts/:post_id?", view)
+    router.add_route(path("/api/users/:id/posts/:post_id?", view=view))
 
     params, route = router.match("get", "/api/users/123/posts/456")
 
@@ -515,7 +430,7 @@ def test_router_match_with_none_group():
     router = Router()
     view = MockView("TestView", ["get"])
 
-    router.add_route("/api/users/:id?", view)
+    router.add_route(path("/api/users/:id?", view=view))
 
     params, route = router.match("get", "/api/users")
     assert isinstance(params, dict)
@@ -560,8 +475,8 @@ def test_router_match_continue_on_failed_match():
     view1 = MockView("DynamicView", ["get"])
     view2 = MockView("StaticView", ["get"])
 
-    router.add_route("/api/users/:id", view1)
-    router.add_route("/api/users/profile", view2)
+    router.add_route(path("/api/users/:id", view=view1))
+    router.add_route(path("/api/users/profile", view=view2))
 
     params, route = router.match("get", "/api/users/profile")
 
@@ -598,29 +513,11 @@ def test_router_parse_handles_re_error(mock_compile):
         router.parse("/api/users/:id")
 
 
-def test_router_priority_complex_patterns():
-    router = Router()
-
-    route_many_required = Mock()
-    route_many_required.keys = ["id", "postId", "commentId"]
-    route_many_required.pattern = "/api/users/:id/posts/:postId/comments/:commentId"
-
-    route_many_optional = Mock()
-    route_many_optional.keys = ["id", "postId"]
-    route_many_optional.pattern = "/api/users/:id?/posts/:postId?"
-
-    priority_required = router._route_priority(route_many_required)
-    priority_optional = router._route_priority(route_many_optional)
-
-    assert isinstance(priority_required, int)
-    assert isinstance(priority_optional, int)
-
-
 def test_router_add_route_multiple_methods():
     router = Router()
     view = MockView("MultiMethodView", ["get", "post", "put"])
 
-    router.add_route("/api/users", view)
+    router.add_route(path("/api/users", view=view))
 
     assert "get" in router.routes
     assert "post" in router.routes

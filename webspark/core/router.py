@@ -60,6 +60,7 @@ class Route:
         keys: list[str] | Literal[False],
         view: abc.Callable,
         cached_view: abc.Callable = None,
+        plugins: list[Plugin] | None = None,
     ):
         """Initialize a Route.
 
@@ -77,6 +78,7 @@ class Route:
         self.keys = keys
         self.view = view
         self.cached_view = cached_view
+        self.plugins = plugins or []
 
     def __call__(self, *args, **kwds):
         """Call the route's view handler.
@@ -135,49 +137,7 @@ class Router:
         """Initialize the Router."""
         self.routes: defaultdict[str, list[Route]] = defaultdict(list)
 
-    def _route_priority(self, route: Route) -> int:
-        """Calculate route priority for sorting.
-
-        Static routes (no parameters) have higher priority (lower number) than
-        dynamic routes. Routes are sorted to ensure static routes are matched first.
-
-        Args:
-            route: Route to calculate priority for.
-
-        Returns:
-            int: Priority value (lower numbers = higher priority).
-        """
-        if route.keys == [] or route.keys is False:
-            return 0
-
-        required_params = 0
-        optional_params = 0
-
-        if isinstance(route.pattern, str):
-            for segment in route.pattern.split("/"):
-                if segment and segment[0] in ":*":
-                    if "?" in segment or (segment[0] == "*" and len(segment) > 1):
-                        optional_params += 1
-                    else:
-                        required_params += 1
-
-        return required_params * 1000 + (100 - min(optional_params, 100))
-
-    def sort_routes(self):
-        """Sort all routes by priority.
-
-        This method sorts routes within each HTTP method group to ensure
-        static routes are matched before dynamic routes.
-        """
-        for method in self.routes:
-            self.routes[method].sort(key=self._route_priority)
-
-    def add_route(
-        self,
-        pattern: str | re.Pattern,
-        view: abc.Callable[[Request], Response],
-        plugins: list[Plugin] = None,
-    ):
+    def add_route(self, path: path):
         """Add a route to the router.
 
         Args:
@@ -185,10 +145,12 @@ class Router:
             view: View class or function to handle requests.
             plugins: List of plugins to apply to this route.
         """
-        for http_method in view.http_methods:
-            cached_view = self.cache_plugins(view, plugins or [])
-            keys, compiled_pattern = self.parse(pattern)
+        view = path.view
+        pattern = path.pattern
+        plugins = path.plugins
 
+        for http_method in view.http_methods:
+            keys, compiled_pattern = self.parse(pattern)
             self.routes[http_method].append(
                 Route(
                     method=http_method,
@@ -196,27 +158,10 @@ class Router:
                     compiled_pattern=compiled_pattern,
                     keys=keys,
                     view=view,
-                    cached_view=cached_view,
+                    cached_view=None,
+                    plugins=plugins,
                 )
             )
-
-    def cache_plugins(
-        self,
-        view: abc.Callable[[Request], Response],
-        plugins: list[Plugin],
-    ):
-        """Apply plugins to a view.
-
-        Args:
-            view: View class or function to apply plugins to.
-            plugins: List of plugins to apply.
-
-        Returns:
-            Callable: View with plugins applied.
-        """
-        for plugin in plugins:
-            view = plugin.apply(view)
-        return view
 
     def parse(
         self,

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import traceback
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .plugin import Plugin
     from .router import path
 
@@ -43,37 +44,62 @@ class WebSpark:
             server.serve_forever()
 
     Attributes:
-        _router (Router): URL router for handling request dispatching.
-        _plugins (list): Global plugins/middleware applied to all routes.
-        _exceptions (dict): Custom exception handlers mapped by status code.
+        router (Router): URL router for handling request dispatching.
+        plugins (list): Global plugins/middleware applied to all routes.
+        exceptions (dict): Custom exception handlers mapped by status code.
         debug (bool): Debug mode flag for detailed error reporting.
         config (object): Configuration object for the application.
     """
 
     def __init__(
         self,
-        global_plugins: list[Plugin] = None,
+        plugins: list[Plugin] = None,
         config: object = None,
         debug: bool = False,
     ):
-        """Initialize the WebSpark application.
-
-        Args:
-            global_plugins: List of plugins to apply globally to all routes.
-            debug: Enable debug mode for detailed error reporting.
-        """
-        self._router = Router()
-        self._plugins = global_plugins or []
-        self._exceptions = {}
+        self.router = Router()
+        self.plugins = plugins or []
+        self.exceptions = {}
         self.debug = debug
         self.config = config or object()
+
+    def __call__(self, env: dict, start_response: Callable):
+        """WSGI application entry point.
+
+        This method implements the WSGI callable interface, handling incoming
+        HTTP requests and returning appropriate responses. It performs request
+        routing, exception handling, and response conversion to WSGI format.
+
+        Args:
+            env: WSGI environment dictionary.
+            start_response: WSGI start_response callable.
+
+        Returns:
+            Iterable: Response body iterable for WSGI server.
+        """
+        request = self.creat_request(env)
+        try:
+            self.check_allowed_hosts(request)
+            response = self.dispatch_request(request)
+        except Exception as exc:
+            if self.debug:
+                env["wsgi.errors"].write(traceback.format_exc())
+                env["wsgi.errors"].flush()
+            exc_handler = self.exceptions.get(
+                getattr(exc, "status_code", 500), self.default_exception_handler
+            )
+            response = exc_handler(request, exc)
+
+        status_str, headers, body_iter = response.as_wsgi()
+
+        start_response(status_str, headers)
+        return body_iter
 
     def add_paths(self, paths: list[path | list]):
         """Add routes to the application from path objects.
 
         This method registers routes defined using the path class with the
-        application's router. It handles nested path structures and applies
-        both global and route-specific plugins.
+        application's router.
 
         Args:
             paths: List of path objects or nested lists of path objects.
@@ -84,11 +110,7 @@ class WebSpark:
             elif path.view is None:
                 self.add_paths(path.children)
             else:
-                self._router.add_route(
-                    path.pattern, path.view, self._plugins + path.plugins
-                )
-
-        self._router.sort_routes()
+                self.router.add_route(path)
 
     def add_plugins(self, plugin: Plugin):
         """Add a plugin to the global plugin list.
@@ -96,7 +118,7 @@ class WebSpark:
         Args:
             plugin (Plugin): The plugin instance to add to the global plugins.
         """
-        self._plugins.append(plugin)
+        self.plugins.append(plugin)
 
     def handle_exception(self, status: int):
         """Decorator for registering custom exception handlers.
@@ -121,43 +143,26 @@ class WebSpark:
         """
 
         def wrapper(func: Callable[[Request, Exception], Response]):
-            self._exceptions[status] = func
+            self.exceptions[status] = func
 
         return wrapper
 
-    def __call__(self, env: dict, start_response: Callable):
-        """WSGI application entry point.
-
-        This method implements the WSGI callable interface, handling incoming
-        HTTP requests and returning appropriate responses. It performs request
-        routing, exception handling, and response conversion to WSGI format.
+    def cache_plugins(self, view: Callable, plugins: list[Plugin]):
+        """Apply plugins to a view.
 
         Args:
-            env: WSGI environment dictionary.
-            start_response: WSGI start_response callable.
+            view: View class or function to apply plugins to.
+            plugins: List of plugins to apply.
 
         Returns:
-            Iterable: Response body iterable for WSGI server.
+            Callable: View with plugins applied.
         """
-        request = self.creat_request(env)
-        try:
-            self._check_allowed_hosts(request)
-            response = self.dispatch_request(request)
-        except Exception as exc:
-            if self.debug:
-                env["wsgi.errors"].write(traceback.format_exc())
-                env["wsgi.errors"].flush()
-            exc_handler = self._exceptions.get(
-                getattr(exc, "status_code", 500), self.default_exception_handler
-            )
-            response = exc_handler(request, exc)
+        for plugin in plugins:
+            view = plugin.apply(view)
 
-        status_str, headers, body_iter = response.as_wsgi()
+        return view
 
-        start_response(status_str, headers)
-        return body_iter
-
-    def _check_allowed_hosts(self, request: Request):
+    def check_allowed_hosts(self, request: Request):
         """Check if the request host is allowed based on configuration.
 
         Validates the incoming request's host header against the configured
@@ -257,9 +262,12 @@ class WebSpark:
         http_method = request.method
         path_info = request.path
 
-        params, route = self._router.match(http_method, path_info)
+        params, route = self.router.match(http_method, path_info)
 
         request.path_params = params
+
+        if not route.cached_view and (route.plugins or self.plugins):
+            route.cached_view = self.cache_plugins(self.plugins + route.plugins)
 
         resp = route(request)
 

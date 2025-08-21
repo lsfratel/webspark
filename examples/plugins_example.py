@@ -83,7 +83,7 @@ class ErrorView(View):
 
 
 # Create the app with global plugins
-app = WebSpark(debug=True, global_plugins=[LoggingPlugin()])
+app = WebSpark(debug=True, plugins=[LoggingPlugin()])
 
 
 # Add custom exception handler
