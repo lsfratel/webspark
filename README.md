@@ -233,7 +233,7 @@ class LoggingPlugin(Plugin):
         return wrapped_handler
 
 # Register the plugin globally
-app = WebSpark(global_plugins=[LoggingPlugin()])
+app = WebSpark(plugins=[LoggingPlugin()])
 
 # Or apply it to a specific path
 app.add_paths([

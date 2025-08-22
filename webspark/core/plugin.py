@@ -25,7 +25,7 @@ class Plugin:
                 return wrapped_handler
 
         # Apply globally
-        app = WebSpark(global_plugins=[LoggingPlugin()])
+        app = WebSpark(plugins=[LoggingPlugin()])
 
         # Apply to specific routes
         app.add_paths([
