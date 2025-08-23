@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 from ..http.request import Request
 from ..http.response import Response, TextResponse
 from ..utils import HTTPException
-from .router import Router
+from .trierouter import TrieRouter
 
 
 class WebSpark:
@@ -56,7 +56,7 @@ class WebSpark:
         config: object = None,
         debug: bool = False,
     ):
-        self.router = Router()
+        self.router = TrieRouter()
         self.plugins = plugins or []
         self.exceptions = {}
         self.debug = debug
@@ -227,17 +227,19 @@ class WebSpark:
         Raises:
             HTTPException: If no route matches or handler returns invalid response.
         """
-        http_method = request.method
         path_info = request.path
 
-        params, route = self.router.match(http_method, path_info)
+        path_, params = self.router.search(path_info)
+
+        if path_ is None:
+            raise HTTPException("Route not found.", status_code=404)
 
         request.path_params = params
 
-        if not route.cached_view and (route.plugins or self.plugins):
-            route.cached_view = self.cache_plugins(self.plugins + route.plugins)
+        if not path_.cached_view and (path_.plugins or self.plugins):
+            path_.cached_view = self.cache_plugins(self.plugins + path_.plugins)
 
-        resp = route(request)
+        resp = (path_.cached_view or path_.view)(request)
 
         if not isinstance(resp, Response):
             raise ValueError("Route handler did not return a valid Response object.")

@@ -90,9 +90,6 @@ Capture parts of the URL by defining parameters with a colon (`:`).
 # Route for /users/123
 path("/users/:id", view=UserDetailView.as_view())
 
-# Optional parameter (matches /users/123 and /users/123/profile)
-path("/users/:id/profile?", view=UserProfileView.as_view())
-
 # Wildcard route (matches /files/path/to/your/file.txt)
 path("/files/*path", view=FileView.as_view())
 ```

@@ -147,13 +147,16 @@ class View:
         Returns:
             Response: The HTTP response from the handler method.
         """
+        actions = self.action_map
+
+        if request.method not in actions:
+            raise HTTPException("Method not allowed.", status_code=405)
+
         self.args = args
         self.kwargs = kwargs
         self.request = request
 
-        actions = self.action_map
-
-        handler = getattr(self, actions[request.method.lower()])
+        handler = getattr(self, actions[request.method])
 
         return handler(request, *args, **kwargs)
 

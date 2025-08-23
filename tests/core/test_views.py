@@ -120,7 +120,7 @@ def test_view_dispatch():
 
     view = TestView()
     view.action_map = {"get": "handle_get"}
-    request = MockRequest(method="GET")
+    request = MockRequest(method="get")
 
     response = view.dispatch(request, "arg1", "arg2", kwarg1="value1")
 
@@ -138,7 +138,7 @@ def test_view_dispatch_with_custom_action():
 
     view = TestView()
     view.action_map = {"post": "custom_handler"}
-    request = MockRequest(method="POST")
+    request = MockRequest(method="post")
 
     response = view.dispatch(request)
 
@@ -190,7 +190,7 @@ def test_view_with_no_schema_methods():
 
     view_func = SimpleView.as_view()
     request = MockRequest(
-        method="GET", query_params={"q": "search"}, body={"data": "test"}
+        method="get", query_params={"q": "search"}, body={"data": "test"}
     )
 
     response = view_func(request)
@@ -235,13 +235,13 @@ def test_view_validate_schema_integration():
 
     view_func = SchemaView.as_view()
     env = {}
-    request = MockRequest(method="GET", env=env)
+    request = MockRequest(method="get", env=env)
 
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data == "success"
 
-    request = MockRequest(method="POST")
+    request = MockRequest(method="post")
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data == "success"
@@ -257,13 +257,13 @@ def test_view_full_integration():
 
     view_func = UserView.as_view()
     env = {}
-    request = MockRequest(method="GET", env=env)
+    request = MockRequest(method="get", env=env)
 
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data["action"] == "get"
 
-    request = MockRequest(method="POST")
+    request = MockRequest(method="post")
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data["action"] == "post"
@@ -279,7 +279,7 @@ def test_view_dispatch_sets_attributes():
 
     view_func = TestView.as_view()
     env = {}
-    request = MockRequest(method="GET", env=env)
+    request = MockRequest(method="get", env=env)
 
     response = view_func(request)
     assert isinstance(response, MockResponse)
@@ -298,7 +298,7 @@ def test_view_as_view_with_initkwargs():
     view_func = TestView.as_view(custom_param="test_value")
 
     env = {}
-    request = MockRequest(method="GET", env=env)
+    request = MockRequest(method="get", env=env)
 
     response = view_func(request)
 
@@ -422,7 +422,7 @@ def test_view_dispatch_handler_not_found():
 
     view = TestView()
     view.action_map = {"get": "nonexistent_handler"}
-    request = MockRequest(method="GET")
+    request = MockRequest(method="get")
 
     with pytest.raises(AttributeError):
         view.dispatch(request)

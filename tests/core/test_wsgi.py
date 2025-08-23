@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 
-from webspark.core.router import path
+from webspark.core.trierouter import path
 from webspark.core.views import View
 from webspark.core.wsgi import WebSpark
 from webspark.http.response import TextResponse
