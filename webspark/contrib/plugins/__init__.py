@@ -1,7 +1,7 @@
 from .allowed_hosts import AllowedHostsPlugin
-from .cors import CorsPlugin
+from .cors import CORSPlugin
 
 __all__ = [
     "AllowedHostsPlugin",
-    "CorsPlugin",
+    "CORSPlugin",
 ]
