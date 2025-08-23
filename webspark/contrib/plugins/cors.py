@@ -5,10 +5,10 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..http import Context
+    from ...http import Context
 
-from ..core.plugin import Plugin
-from ..utils import HTTPException
+from ...core.plugin import Plugin
+from ...utils import HTTPException
 
 
 class CORSPlugin(Plugin):

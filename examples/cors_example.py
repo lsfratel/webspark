@@ -2,7 +2,7 @@
 Example demonstrating how to use the CORS plugin with WebSpark.
 """
 
-from webspark.contrib.cors import CORSPlugin
+from webspark.contrib.plugins import CORSPlugin
 from webspark.core import View, WebSpark, path
 from webspark.http import Context
 

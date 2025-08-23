@@ -77,7 +77,6 @@ class WebSpark:
         """
         ctx = self.creat_context(env)
         try:
-            self.check_allowed_hosts(ctx)
             self.dispatch_request(ctx)
         except Exception as exc:
             if self.debug:
@@ -160,48 +159,6 @@ class WebSpark:
 
         return view
 
-    def check_allowed_hosts(self, ctx: Context):
-        """Check if the request host is allowed based on configuration.
-
-        Validates the incoming request's host header against the configured
-        ALLOWED_HOSTS setting. Supports exact matches and subdomain patterns.
-
-        Args:
-            ctx (Context): The context of the request being processed.
-
-        Raises:
-            HTTPException: If the host header is missing, invalid, or not
-                          in the allowed hosts list (status code 400).
-
-        Note:
-            - If ALLOWED_HOSTS is None, defaults to ["*"] in debug mode
-              or empty list in production mode.
-            - "*" allows all hosts.
-            - Patterns starting with "." match subdomains (e.g., ".example.com"
-              matches "sub.example.com" and "example.com").
-        """
-        allowed_hosts = getattr(self.config, "ALLOWED_HOSTS", None)
-
-        if allowed_hosts is None:
-            allowed_hosts = ["*"] if self.debug else []
-
-        host = ctx.host.split(":")[0] if ctx.host else ""
-
-        if not host:
-            raise HTTPException("Invalid or missing host header.", status_code=400)
-
-        if "*" in allowed_hosts:
-            return
-
-        for pattern in allowed_hosts:
-            if pattern.startswith("."):
-                if host.endswith(pattern) or host == pattern[1:]:
-                    return
-            elif host == pattern:
-                return
-
-        raise HTTPException(f"Host '{host}' not allowed.", status_code=400)
-
     def default_exception_handler(self, ctx: Context, exc: Exception):
         message = getattr(exc, "details", "Internal error. Please try again.")
         satus = getattr(exc, "status_code", 400)
@@ -235,19 +192,19 @@ class WebSpark:
 
         ctx.path_params = params
 
-        if not path_.cached_view and (path_.plugins or self.plugins):
+        if path_.cached_view  is None and (path_.plugins or self.plugins):
             path_.cached_view = self.cache_plugins(path_.view, self.plugins + path_.plugins)
 
         return (path_.cached_view or path_.view)(ctx)
 
     def creat_context(self, env: dict):
-        """Create a Request object from the WSGI environment.
+        """Create a Context object from the WSGI environment.
 
         Args:
             env: WSGI environment dictionary.
 
         Returns:
-            Request: The created Request object.
+            Context: The created Context object.
         """
 
         env["webspark.instance"] = self

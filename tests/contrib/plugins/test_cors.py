@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from webspark.contrib.cors import CORSPlugin
+from webspark.contrib.plugins.cors import CORSPlugin
 from webspark.http import Context
 from webspark.utils import HTTPException
 

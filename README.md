@@ -18,7 +18,7 @@ WebSpark provides a simple yet powerful architecture for handling HTTP requests 
 -   **Optimized JSON Handling**: Automatically uses the fastest available JSON library (`orjson`, `ujson`, or `json`).
 -   **Built-in File Uploads**: Seamlessly handle multipart form data and file uploads.
 -   **Comprehensive Error Handling**: A simple `HTTPException` system for clear and consistent error responses.
--   **Security Features**: Built-in protection against HTTP Host header attacks and proxy support.
+-   **Proxy Support**: Built-in support for running behind a reverse proxy.
 -   **Environment Configuration**: Helper utilities for managing configuration via environment variables.
 -   **Extensive Testing**: 90% test coverage ensuring reliability and stability.
 
@@ -271,7 +271,7 @@ app.add_paths([
 WebSpark includes a CORS (Cross-Origin Resource Sharing) plugin that implements the full CORS specification. It supports both simple and preflighted requests with configurable origins, methods, headers, and credentials.
 
 ```python
-from webspark.contrib import CORSPlugin
+from webspark.contrib.plugins import CORSPlugin
 
 # Create a CORS plugin with a specific configuration
 cors_plugin = CORSPlugin(
@@ -301,6 +301,29 @@ The CORS plugin supports the following configuration options:
 - `max_age` - How long the preflight response should be cached (in seconds).
 - `expose_headers` - List of headers that browsers are allowed to access.
 - `vary_header` - Whether to add Vary header for preflight requests.
+
+#### AllowedHosts Plugin
+
+To prevent HTTP Host header attacks, WebSpark provides an `AllowedHostsPlugin`. This plugin checks the request's `Host` header against a list of allowed hostnames.
+
+```python
+from webspark.contrib.plugins import AllowedHostsPlugin
+
+# Allow requests only to "mydomain.com" and any subdomain of "api.mydomain.com"
+allowed_hosts_plugin = AllowedHostsPlugin(
+    allowed_hosts=["mydomain.com", ".api.mydomain.com"]
+)
+
+# Register the plugin globally
+app = WebSpark(plugins=[allowed_hosts_plugin])
+```
+
+-   **Behavior**:
+    -   If `allowed_hosts` is not set, all requests will be rejected with a `400 Bad Request` error, ensuring that only requests from specified hosts are processed.
+-   **Matching**:
+    -   `"mydomain.com"`: Matches the exact domain.
+    -   `".mydomain.com"`: Matches `mydomain.com` and any subdomain (e.g., `api.mydomain.com`).
+    -   `"*"`: Matches any host.
 
 ### 7. Error Handling
 
@@ -372,27 +395,7 @@ The framework checks for the following headers when `TRUST_PROXY` is enabled:
 -   `X-Forwarded-Proto` for the request scheme (`http` or `https`).
 -   `X-Forwarded-Host` for the original host.
 
-### 10. Allowed Hosts
-
-To prevent HTTP Host header attacks, WebSpark checks the request's `Host` header against a list of allowed hostnames. This is configured via the `ALLOWED_HOSTS` setting on the configuration object.
-
-```python
-class AppConfig:
-    # Allow requests only to "mydomain.com" and any subdomain of "api.mydomain.com"
-    ALLOWED_HOSTS = ["mydomain.com", ".api.mydomain.com"]
-
-app = WebSpark(config=AppConfig())
-```
-
--   **Behavior**:
-    -   If `debug=True`, `ALLOWED_HOSTS` defaults to `["*"]` (allowing all hosts).
-    -   If `debug=False` and `ALLOWED_HOSTS` is not set, all requests will be rejected with a `400 Bad Request` error.
--   **Matching**:
-    -   `"mydomain.com"`: Matches the exact domain.
-    -   `".mydomain.com"`: Matches `mydomain.com` and any subdomain (e.g., `api.mydomain.com`).
-    -   `"*"`: Matches any host.
-
-### 11. Environment Variable Helper
+### 10. Environment Variable Helper
 
 WebSpark includes a convenient `env` helper function in `webspark.utils` to simplify reading and parsing environment variables.
 
@@ -411,7 +414,7 @@ DEBUG = env("DEBUG", default=False, parser=bool)
 
 This helper streamlines configuration management, making it easy to handle different data types and required settings.
 
-### 12. File Uploads
+### 11. File Uploads
 
 WebSpark makes handling file uploads simple with built-in multipart form data parsing. Uploaded files are accessible through the `ctx.files` attribute.
 
@@ -473,6 +476,7 @@ pdm run ruff format .
 ```
 webspark/
 ├── core/          # Core components (WSGI app, router, views, schemas)
+├── contrib/       # Optional plugins (CORS, AllowedHosts)
 ├── http/          # HTTP abstractions (request, response, cookies)
 ├── schema/        # Data validation schemas and fields
 ├── utils/         # Utilities (exceptions, JSON handling, env vars)
@@ -489,6 +493,10 @@ webspark/
   - `View` - Base class for request handlers
   - `path` - Routing helper function
   - `Plugin` - Base class for middleware
+
+- **contrib/** - Optional plugins:
+  - `CORSPlugin` - Handles Cross-Origin Resource Sharing.
+  - `AllowedHostsPlugin` - Validates incoming Host headers.
 
 - **http/** - HTTP abstractions:
   - `Context` - Request/response context object

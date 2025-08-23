@@ -7,6 +7,7 @@ This example demonstrates:
 - Environment variable usage
 """
 
+from webspark.contrib.plugins import AllowedHostsPlugin
 from webspark.core import View, WebSpark, path
 from webspark.http import Context
 from webspark.utils import env
@@ -30,12 +31,18 @@ class AppConfig:
 
     # Allowed hosts for security (in production, specify your domain)
     ALLOWED_HOSTS = env(
-        "ALLOWED_HOSTS", default=["*"] if DEBUG else ["localhost", "127.0.0.1"]
+        "ALLOWED_HOSTS",
+        default=["*"] if DEBUG else ["localhost", "127.0.0.1"],
+        parser=lambda x: x.split(",") if x else [],
     )
 
 
 # Create the app with configuration
-app = WebSpark(config=AppConfig(), debug=AppConfig.DEBUG)
+app = WebSpark(
+    config=AppConfig(),
+    debug=AppConfig.DEBUG,
+    plugins=[AllowedHostsPlugin(allowed_hosts=AppConfig.ALLOWED_HOSTS)],
+)
 
 
 # Sample view to show configuration
