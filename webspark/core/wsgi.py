@@ -236,7 +236,7 @@ class WebSpark:
         ctx.path_params = params
 
         if not path_.cached_view and (path_.plugins or self.plugins):
-            path_.cached_view = self.cache_plugins(self.plugins + path_.plugins)
+            path_.cached_view = self.cache_plugins(path_.view, self.plugins + path_.plugins)
 
         return (path_.cached_view or path_.view)(ctx)
 

@@ -18,6 +18,9 @@ WebSpark provides a simple yet powerful architecture for handling HTTP requests 
 -   **Optimized JSON Handling**: Automatically uses the fastest available JSON library (`orjson`, `ujson`, or `json`).
 -   **Built-in File Uploads**: Seamlessly handle multipart form data and file uploads.
 -   **Comprehensive Error Handling**: A simple `HTTPException` system for clear and consistent error responses.
+-   **Security Features**: Built-in protection against HTTP Host header attacks and proxy support.
+-   **Environment Configuration**: Helper utilities for managing configuration via environment variables.
+-   **Extensive Testing**: 90% test coverage ensuring reliability and stability.
 
 ## Installation
 
@@ -73,6 +76,19 @@ gunicorn app:app
 ```
 
 Open your browser to `http://127.0.0.1:8000`, and you should see the JSON response!
+
+## More Examples
+
+Check out the [examples](examples/) directory for more comprehensive examples:
+
+1. **[Basic API](examples/basic_api.py)** - A simple REST API with CRUD operations
+2. **[Schema Validation](examples/schema_example.py)** - Data validation with schemas
+3. **[Plugins/Middleware](examples/plugins_example.py)** - Middleware and exception handling
+4. **[Cookies](examples/cookies_example.py)** - Session management with cookies
+5. **[Configuration](examples/config_example.py)** - Proxy configuration and security
+6. **[File Uploads](examples/file_upload_example.py)** - Handling multipart form data
+7. **[Database Integration](examples/database_example.py)** - Working with databases
+8. **[CORS](examples/cors_example.py)** - Cross-Origin Resource Sharing configuration
 
 ---
 
@@ -166,7 +182,22 @@ class CreateUserView(View):
 
 #### Available Fields
 
-WebSpark offers a rich set of fields for comprehensive validation: `StringField`, `IntegerField`, `FloatField`, `BooleanField`, `ListField`, `SerializerField` (for nested objects), `DateTimeField`, `UUIDField`, `EmailField`, `URLField`, `EnumField`, `DecimalField`, `MethodField` and `RegexField`.
+WebSpark offers a rich set of fields for comprehensive validation:
+
+- `StringField` - String validation with min/max length
+- `IntegerField` - Integer validation with min/max value
+- `FloatField` - Float validation with min/max value
+- `BooleanField` - Boolean value validation
+- `ListField` - List validation with item type specification
+- `SerializerField` - Nested object validation
+- `DateTimeField` - ISO format datetime validation
+- `UUIDField` - UUID validation
+- `EmailField` - Email format validation
+- `URLField` - URL format validation
+- `EnumField` - Enumeration value validation
+- `DecimalField` - Decimal number validation
+- `MethodField` - Custom validation method
+- `RegexField` - Regular expression validation
 
 ### 4. Responses
 
@@ -234,6 +265,42 @@ app.add_paths([
     path("/admin", view=AdminView.as_view(), plugins=[AuthPlugin()])
 ])
 ```
+
+#### CORS Plugin
+
+WebSpark includes a CORS (Cross-Origin Resource Sharing) plugin that implements the full CORS specification. It supports both simple and preflighted requests with configurable origins, methods, headers, and credentials.
+
+```python
+from webspark.contrib import CORSPlugin
+
+# Create a CORS plugin with a specific configuration
+cors_plugin = CORSPlugin(
+    allow_origins=["https://mydomain.com", "https://api.mydomain.com"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    allow_credentials=True,
+    max_age=86400,  # 24 hours
+    expose_headers=["X-Custom-Header"]
+)
+
+# Register the plugin globally
+app = WebSpark(plugins=[cors_plugin])
+
+# Or apply it to specific paths
+app.add_paths([
+    path("/api/", view=APIView.as_view(), plugins=[cors_plugin])
+])
+```
+
+The CORS plugin supports the following configuration options:
+
+- `allow_origins` - List of allowed origins. Use `["*"]` to allow all origins (not recommended for production with credentials).
+- `allow_methods` - List of allowed HTTP methods.
+- `allow_headers` - List of allowed headers.
+- `allow_credentials` - Whether to allow credentials (cookies, authorization headers).
+- `max_age` - How long the preflight response should be cached (in seconds).
+- `expose_headers` - List of headers that browsers are allowed to access.
+- `vary_header` - Whether to add Vary header for preflight requests.
 
 ### 7. Error Handling
 
@@ -344,6 +411,35 @@ DEBUG = env("DEBUG", default=False, parser=bool)
 
 This helper streamlines configuration management, making it easy to handle different data types and required settings.
 
+### 12. File Uploads
+
+WebSpark makes handling file uploads simple with built-in multipart form data parsing. Uploaded files are accessible through the `ctx.files` attribute.
+
+```python
+class FileUploadView(View):
+    def handle_post(self, ctx: Context):
+        # Check if request has files
+        if not ctx.files:
+            raise HTTPException("No files uploaded", status_code=400)
+
+        # Process each uploaded file
+        for field_name, file_list in ctx.files.items():
+            # file_list can be a single file dict or list of file dicts
+            files = file_list if isinstance(file_list, list) else [file_list]
+
+            for file_info in files:
+                # file_info contains:
+                # - filename: original filename
+                # - content_type: MIME type
+                # - file: file-like object with read() method
+
+                # Save the file
+                with open(f"/uploads/{file_info['filename']}", "wb") as f:
+                    f.write(file_info["file"].read())
+```
+
+---
+
 ## Development
 
 ### Running Tests
@@ -353,6 +449,9 @@ This project uses `pdm` and `pytest`.
 ```bash
 # Run all tests
 pdm run pytest
+
+# Run tests with coverage
+pdm run tests
 ```
 
 ### Code Quality
@@ -367,15 +466,43 @@ pdm run ruff check .
 pdm run ruff format .
 ```
 
+---
+
 ## Project Structure
 
 ```
 webspark/
 ├── core/          # Core components (WSGI app, router, views, schemas)
 ├── http/          # HTTP abstractions (request, response, cookies)
-├── utils/         # Utilities (exceptions, JSON handling)
-└── constants.py   # HTTP constants and error codes
+├── schema/        # Data validation schemas and fields
+├── utils/         # Utilities (exceptions, JSON handling, env vars)
+├── examples/      # Comprehensive usage examples
+├── tests/         # Test suite for all components
+├── constants.py   # HTTP constants and error codes
+└── __init__.py    # Package metadata
 ```
+
+### Core Modules
+
+- **core/** - Contains the fundamental building blocks:
+  - `WebSpark` - The main WSGI application class
+  - `View` - Base class for request handlers
+  - `path` - Routing helper function
+  - `Plugin` - Base class for middleware
+
+- **http/** - HTTP abstractions:
+  - `Context` - Request/response context object
+  - `Cookie` - Cookie handling utilities
+  - `multipart` - File upload handling
+
+- **schema/** - Data validation:
+  - `ObjectSchema` - Base class for validation schemas
+  - `fields` - Validation field types
+
+- **utils/** - Utility functions:
+  - `HTTPException` - Standardized error handling
+  - `env` - Environment variable helper
+  - `json` - Optimized JSON handling
 
 ## Contributing
 
@@ -386,6 +513,8 @@ Contributions are welcome! Please feel free to fork the repository, make your ch
 3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
 4.  Push to the branch (`git push origin feature/AmazingFeature`).
 5.  Open a pull request.
+
+Please ensure your code follows the project's style guidelines and includes appropriate tests.
 
 ## License
 

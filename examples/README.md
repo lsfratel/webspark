@@ -41,6 +41,11 @@ This directory contains several self-contained examples demonstrating different 
    - CRUD operations with database models
    - Error handling for database operations
 
+8. **[cors_example.py](cors_example.py)** - CORS handling
+   - Configuring CORS policies
+   - Allowing specific origins
+   - Handling preflight requests
+
 ## Running the Examples
 
 To run any of these examples, use a WSGI server like Gunicorn:

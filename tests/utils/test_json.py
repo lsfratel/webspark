@@ -50,7 +50,7 @@ def test_deserialize_invalid_json_raises_error():
 
 def test_json_handler_orjson():
     try:
-        import orjson
+        import orjson  # noqa: F401
     except ImportError:
         pytest.skip("orjson not installed")
 
@@ -65,7 +65,7 @@ def test_json_handler_orjson():
 def test_json_handler_ujson(monkeypatch):
     monkeypatch.setitem(sys.modules, "orjson", None)
     try:
-        import ujson
+        import ujson  # noqa: F401
     except ImportError:
         pytest.skip("ujson not installed")
 
