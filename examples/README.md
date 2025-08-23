@@ -46,6 +46,10 @@ This directory contains several self-contained examples demonstrating different 
    - Allowing specific origins
    - Handling preflight requests
 
+9. **[auth_example.py](auth_example.py)** - Token-based authentication
+   - Demonstrating basic API with token-based authentication
+   - Securing endpoints with authentication
+
 ## Running the Examples
 
 To run any of these examples, use a WSGI server like Gunicorn:
@@ -62,6 +66,8 @@ gunicorn examples.cookies_example:app
 gunicorn examples.config_example:app
 gunicorn examples.file_upload_example:app
 gunicorn examples.database_example:app
+gunicorn examples.cors_example:app
+gunicorn examples.auth_example:app
 ```
 
 Or with PDM (if developing locally):

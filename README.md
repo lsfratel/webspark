@@ -89,6 +89,7 @@ Check out the [examples](examples/) directory for more comprehensive examples:
 6. **[File Uploads](examples/file_upload_example.py)** - Handling multipart form data
 7. **[Database Integration](examples/database_example.py)** - Working with databases
 8. **[CORS](examples/cors_example.py)** - Cross-Origin Resource Sharing configuration
+9. **[Token Auth](examples/auth_example.py)** - Token-based authentication
 
 ---
 
@@ -324,6 +325,34 @@ app = WebSpark(plugins=[allowed_hosts_plugin])
     -   `"mydomain.com"`: Matches the exact domain.
     -   `".mydomain.com"`: Matches `mydomain.com` and any subdomain (e.g., `api.mydomain.com`).
     -   `"*"`: Matches any host.
+
+#### TokenAuth Plugin
+
+WebSpark provides a `TokenAuthPlugin` for implementing token-based authentication, typically used for APIs. This plugin checks for an `Authorization` header and validates the token using a provided function.
+
+```python
+from webspark.contrib.plugins import TokenAuthPlugin
+
+# A simple function to validate a token and return a user object.
+# In a real application, this would check a database.
+def get_user_from_token(token: str):
+    if token == "secret-token":
+        return {"username": "admin"}
+    return None
+
+# Create a token auth plugin
+token_auth_plugin = TokenAuthPlugin(token_loader=get_user_from_token)
+
+# Apply the plugin to a protected view
+app.add_paths([
+    path("/protected", view=ProtectedView.as_view(), plugins=[token_auth_plugin])
+])
+```
+
+-   **Behavior**:
+    -   The plugin expects an `Authorization` header in the format `Token <your-token>`. The scheme (`Token`) can be customized.
+    -   If the header is missing or invalid, it returns a `401 Unauthorized` response with a `WWW-Authenticate` header.
+    -   If the token is successfully validated by the `token_loader` function, the returned user object is attached to the context as `ctx.state["user"]` and the request proceeds to the view.
 
 ### 7. Error Handling
 
