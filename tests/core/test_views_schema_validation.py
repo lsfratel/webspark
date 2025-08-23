@@ -49,7 +49,7 @@ def test_view_validate_schema_success():
     view = TestView()
     view.args = ()
     view.kwargs = {}
-    view.request = MockRequest()
+    view.ctx = MockRequest()
 
     mock_schema_cls = Mock()
     mock_schema_instance = MockSchema()
@@ -73,7 +73,7 @@ def test_view_validate_schema_failure():
     view = TestView()
     view.args = ()
     view.kwargs = {}
-    view.request = MockRequest()
+    view.ctx = MockRequest()
 
     mock_schema_cls = Mock()
     mock_schema_instance = MockSchema()
@@ -95,7 +95,7 @@ def test_view_validate_schema_failure_no_raise():
     view = TestView()
     view.args = ()
     view.kwargs = {}
-    view.request = MockRequest()
+    view.ctx = MockRequest()
 
     mock_schema_cls = Mock()
     mock_schema_instance = MockSchema()
@@ -120,7 +120,7 @@ def test_view_validated_query_params_with_schema():
     view.args = ()
     view.kwargs = {}
     query_params = {"key": "value"}
-    view.request = MockRequest(query_params=query_params)
+    view.ctx = MockRequest(query_params=query_params)
 
     with patch.object(view, "_validate_schema") as mock_validate_schema:
         mock_validate_schema.return_value = ({"validated_key": "validated_value"}, {})
@@ -140,7 +140,7 @@ def test_view_validated_query_params_with_schema_raise():
     view.args = ()
     view.kwargs = {}
     query_params = {"key": "value"}
-    view.request = MockRequest(query_params=query_params)
+    view.ctx = MockRequest(query_params=query_params)
 
     with patch.object(view, "_validate_schema") as mock_validate_schema:
         mock_validate_schema.side_effect = HTTPException(
@@ -162,7 +162,7 @@ def test_view_validated_body_with_schema():
     view.args = ()
     view.kwargs = {}
     body = {"key": "value"}
-    view.request = MockRequest(body=body)
+    view.ctx = MockRequest(body=body)
 
     with patch.object(view, "_validate_schema") as mock_validate_schema:
         mock_validate_schema.return_value = ({"validated_key": "validated_value"}, {})
@@ -180,7 +180,7 @@ def test_view_validated_body_with_schema_raise():
     view.args = ()
     view.kwargs = {}
     body = {"key": "value"}
-    view.request = MockRequest(body=body)
+    view.ctx = MockRequest(body=body)
 
     with patch.object(view, "_validate_schema") as mock_validate_schema:
         mock_validate_schema.side_effect = HTTPException(

@@ -7,10 +7,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .plugin import Plugin
-    from .router import path
+    from .trierouter import path
 
-from ..http.request import Request
-from ..http.response import Response, TextResponse
+from ..http import Context
 from ..utils import HTTPException
 from .trierouter import TrieRouter
 
@@ -28,8 +27,8 @@ class WebSpark:
 
         # Define a view
         class HelloWorldView(View):
-            def handle_get(self, request):
-                return JsonResponse({"message": "Hello, World!"})
+            def handle_get(self, ctx: Context):
+                ctx.json({"message": "Hello, World!"})
 
         # Add routes
         app.add_paths([
@@ -76,10 +75,10 @@ class WebSpark:
         Returns:
             Iterable: Response body iterable for WSGI server.
         """
-        request = self.creat_request(env)
+        ctx = self.creat_context(env)
         try:
-            self.check_allowed_hosts(request)
-            response = self.dispatch_request(request)
+            self.check_allowed_hosts(ctx)
+            self.dispatch_request(ctx)
         except Exception as exc:
             if self.debug:
                 env["wsgi.errors"].write(traceback.format_exc())
@@ -87,9 +86,9 @@ class WebSpark:
             exc_handler = self.exceptions.get(
                 getattr(exc, "status_code", 500), self.default_exception_handler
             )
-            response = exc_handler(request, exc)
+            exc_handler(ctx, exc)
 
-        status_str, headers, body_iter = response.as_wsgi()
+        status_str, headers, body_iter = ctx.as_wsgi()
 
         start_response(status_str, headers)
         return body_iter
@@ -141,7 +140,7 @@ class WebSpark:
                 return HTMLResponse("<h1>Internal Server Error</h1>", status=500)
         """
 
-        def wrapper(func: Callable[[Request, Exception], Response]):
+        def wrapper(func: Callable[[Context, Exception], None]):
             self.exceptions[status] = func
 
         return wrapper
@@ -161,15 +160,14 @@ class WebSpark:
 
         return view
 
-    def check_allowed_hosts(self, request: Request):
+    def check_allowed_hosts(self, ctx: Context):
         """Check if the request host is allowed based on configuration.
 
         Validates the incoming request's host header against the configured
         ALLOWED_HOSTS setting. Supports exact matches and subdomain patterns.
 
         Args:
-            request (Request): The incoming HTTP request object containing
-                             the host header to validate.
+            ctx (Context): The context of the request being processed.
 
         Raises:
             HTTPException: If the host header is missing, invalid, or not
@@ -187,7 +185,7 @@ class WebSpark:
         if allowed_hosts is None:
             allowed_hosts = ["*"] if self.debug else []
 
-        host = request.host.split(":")[0] if request.host else ""
+        host = ctx.host.split(":")[0] if ctx.host else ""
 
         if not host:
             raise HTTPException("Invalid or missing host header.", status_code=400)
@@ -204,22 +202,23 @@ class WebSpark:
 
         raise HTTPException(f"Host '{host}' not allowed.", status_code=400)
 
-    def default_exception_handler(self, _: Request, exc: Exception):
+    def default_exception_handler(self, ctx: Context, exc: Exception):
         message = getattr(exc, "details", "Internal error. Please try again.")
         satus = getattr(exc, "status_code", 400)
-        return TextResponse(
-            str(message) if not isinstance(message, str) else message, status=satus
+        ctx.text(
+            content=str(message) if not isinstance(message, str) else message,
+            status=satus,
         )
 
-    def dispatch_request(self, request: Request):
+    def dispatch_request(self, ctx: Context):
         """Dispatch a request to the appropriate route handler.
 
-        This method performs URL routing, creates a Request object, and calls
-        the matched route's view handler. It also validates that the handler
+        This method performs URL routing and calls the matched
+        route's view handler. It also validates that the handler
         returns a valid Response object.
 
         Args:
-            request: The request object.
+            ctx: The context of the request being processed.
 
         Returns:
             Response: Response object from the view handler.
@@ -227,26 +226,21 @@ class WebSpark:
         Raises:
             HTTPException: If no route matches or handler returns invalid response.
         """
-        path_info = request.path
+        path_info = ctx.path
 
         path_, params = self.router.search(path_info)
 
         if path_ is None:
             raise HTTPException("Route not found.", status_code=404)
 
-        request.path_params = params
+        ctx.path_params = params
 
         if not path_.cached_view and (path_.plugins or self.plugins):
             path_.cached_view = self.cache_plugins(self.plugins + path_.plugins)
 
-        resp = (path_.cached_view or path_.view)(request)
+        return (path_.cached_view or path_.view)(ctx)
 
-        if not isinstance(resp, Response):
-            raise ValueError("Route handler did not return a valid Response object.")
-
-        return resp
-
-    def creat_request(self, env: dict):
+    def creat_context(self, env: dict):
         """Create a Request object from the WSGI environment.
 
         Args:
@@ -257,4 +251,4 @@ class WebSpark:
         """
 
         env["webspark.instance"] = self
-        return Request(env)
+        return Context(env)

@@ -9,7 +9,7 @@ This example demonstrates:
 import time
 
 from webspark.core import View, WebSpark, path
-from webspark.http import HTMLResponse, JsonResponse, Request
+from webspark.http import Context
 from webspark.utils import HTTPException
 
 # Simple in-memory session store
@@ -17,9 +17,9 @@ sessions = {}
 
 
 class HomeView(View):
-    def handle_get(self, request: Request):
+    def handle_get(self, ctx: Context):
         # Check if user has a session
-        session_id = request.get_cookies().get("session_id")
+        session_id = ctx.cookies.get("session_id")
         user_data = sessions.get(session_id) if session_id else None
 
         if user_data:
@@ -77,14 +77,14 @@ class HomeView(View):
             </html>
             """
 
-        return HTMLResponse(html_content)
+        ctx.html(html_content)
 
 
 class LoginView(View):
-    def handle_post(self, request: Request):
+    def handle_post(self, ctx: Context):
         # In a real app, you would validate credentials
-        username = request.body.get("username", "") if request.body else ""
-        password = request.body.get("password", "") if request.body else ""
+        username = ctx.body.get("username", "") if ctx.body else ""
+        password = ctx.body.get("password", "") if ctx.body else ""
 
         if not username or not password:
             raise HTTPException("Username and password are required", status_code=400)
@@ -99,7 +99,7 @@ class LoginView(View):
         }
 
         # Create response with session cookie
-        response = HTMLResponse("""
+        ctx.html("""
         <!DOCTYPE html>
         <html>
         <head>
@@ -118,27 +118,25 @@ class LoginView(View):
         </body>
         </html>
         """)
-        response.set_cookie(
+        ctx.set_cookie(
             "session_id",
             session_id,
             path="/",
             max_age=3600,
             http_only=True,
-            secure=request.is_secure,
+            secure=ctx.is_secure,
         )
-
-        return response
 
 
 class LogoutView(View):
-    def handle_post(self, request: Request):
+    def handle_post(self, ctx: Context):
         # Clear session
-        session_id = request.get_cookies().get("session_id")
+        session_id = ctx.cookies.get("session_id")
         if session_id and session_id in sessions:
             del sessions[session_id]
 
         # Create response that clears the cookie
-        response = HTMLResponse("""
+        ctx.html("""
         <!DOCTYPE html>
         <html>
         <head>
@@ -157,17 +155,15 @@ class LogoutView(View):
         </body>
         </html>
         """)
-        response.delete_cookie("session_id")
-
-        return response
+        ctx.delete_cookie("session_id")
 
 
 class SessionInfoView(View):
-    def handle_get(self, request: Request):
-        session_id = request.get_cookies().get("session_id")
+    def handle_get(self, ctx: Context):
+        session_id = ctx.cookies.get("session_id")
         user_data = sessions.get(session_id) if session_id else None
 
-        return JsonResponse(
+        ctx.json(
             {
                 "session_id": session_id,
                 "user_data": user_data,

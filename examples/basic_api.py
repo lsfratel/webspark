@@ -8,7 +8,7 @@ This is a simple REST API built with WebSpark that demonstrates:
 """
 
 from webspark.core import View, WebSpark, path
-from webspark.http import JsonResponse
+from webspark.http import Context
 from webspark.utils import HTTPException
 
 # In-memory storage for our examples
@@ -22,14 +22,14 @@ next_id = 3
 class ItemsView(View):
     """Handle operations on the collection of items."""
 
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Return all items."""
-        return JsonResponse({"items": items})
+        ctx.json({"items": items})
 
-    def handle_post(self, request):
+    def handle_post(self, ctx: Context):
         """Create a new item."""
         global next_id
-        data = request.body
+        data = ctx.body
 
         # Simple validation
         if not data or "name" not in data:
@@ -44,26 +44,26 @@ class ItemsView(View):
         items.append(new_item)
         next_id += 1
 
-        return JsonResponse(new_item, status=201)
+        ctx.json(new_item, status=201)
 
 
 class ItemDetailView(View):
     """Handle operations on a single item."""
 
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Return a specific item by ID."""
-        item_id = int(request.path_params["id"])
+        item_id = int(ctx.path_params["id"])
         item = next((item for item in items if item["id"] == item_id), None)
 
         if not item:
             raise HTTPException("Item not found", status_code=404)
 
-        return JsonResponse(item)
+        ctx.json(item)
 
-    def handle_put(self, request):
+    def handle_put(self, ctx: Context):
         """Update a specific item."""
-        item_id = int(request.path_params["id"])
-        data = request.body
+        item_id = int(ctx.path_params["id"])
+        data = ctx.body
 
         # Find the item
         item_index = next(
@@ -78,12 +78,12 @@ class ItemDetailView(View):
             "description", items[item_index]["description"]
         )
 
-        return JsonResponse(items[item_index])
+        ctx.json(items[item_index])
 
-    def handle_delete(self, request):
+    def handle_delete(self, ctx: Context):
         """Delete a specific item."""
         global items
-        item_id = int(request.path_params["id"])
+        item_id = int(ctx.path_params["id"])
 
         # Find and remove the item
         item = next((item for item in items if item["id"] == item_id), None)
@@ -91,7 +91,7 @@ class ItemDetailView(View):
             raise HTTPException("Item not found", status_code=404)
 
         items = [item for item in items if item["id"] != item_id]
-        return JsonResponse({"message": "Item deleted"}, status=204)
+        ctx.json({"message": "Item deleted"}, status=204)
 
 
 # Create the app

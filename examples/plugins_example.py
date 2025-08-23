@@ -9,27 +9,26 @@ This example demonstrates:
 import time
 
 from webspark.core import Plugin, View, WebSpark, path
-from webspark.http import JsonResponse, TextResponse
+from webspark.http import Context
 from webspark.utils import HTTPException
 
 
 # Simple logging plugin
 class LoggingPlugin(Plugin):
     def apply(self, handler):
-        def wrapped_handler(request):
+        def wrapped_handler(ctx: Context):
             start_time = time.time()
-            print(f"[LOG] {request.method} {request.path} - Start")
+            print(f"[LOG] {ctx.method} {ctx.path} - Start")
             try:
-                response = handler(request)
+                handler(ctx)
                 duration = time.time() - start_time
                 print(
-                    f"[LOG] {request.method} {request.path} - Completed in {duration:.4f}s with status {response.status}"
+                    f"[LOG] {ctx.method} {ctx.path} - Completed in {duration:.4f}s with status {ctx.status}"
                 )
-                return response
             except Exception as e:
                 duration = time.time() - start_time
                 print(
-                    f"[LOG] {request.method} {request.path} - Failed in {duration:.4f}s with error: {e}"
+                    f"[LOG] {ctx.method} {ctx.path} - Failed in {duration:.4f}s with error: {e}"
                 )
                 raise
 
@@ -39,9 +38,9 @@ class LoggingPlugin(Plugin):
 # Authentication plugin (simulated)
 class AuthPlugin(Plugin):
     def apply(self, handler):
-        def wrapped_handler(request):
+        def wrapped_handler(ctx: Context):
             # In a real app, you would check a token or session
-            auth_header = request.headers.get("Authorization")
+            auth_header = ctx.headers.get("Authorization")
             if not auth_header or not auth_header.startswith("Bearer "):
                 raise HTTPException("Unauthorized", status_code=401)
 
@@ -51,26 +50,24 @@ class AuthPlugin(Plugin):
                 raise HTTPException("Invalid token", status_code=401)
 
             # Add user info to request for use in views
-            request.user = {"id": 1, "username": "admin"}
-            return handler(request)
+            ctx.state["user"] = {"id": 1, "username": "admin"}
+            handler(ctx)
 
         return wrapped_handler
 
 
 # Views
 class PublicView(View):
-    def handle_get(self, request):
-        return JsonResponse(
-            {"message": "This is a public endpoint", "timestamp": time.time()}
-        )
+    def handle_get(self, ctx: Context):
+        ctx.json({"message": "This is a public endpoint", "timestamp": time.time()})
 
 
 class ProtectedView(View):
-    def handle_get(self, request):
-        return JsonResponse(
+    def handle_get(self, ctx: Context):
+        ctx.json(
             {
                 "message": "This is a protected endpoint",
-                "user": getattr(request, "user", None),
+                "user": ctx.state.get("user"),
                 "timestamp": time.time(),
             }
         )
@@ -88,17 +85,18 @@ app = WebSpark(debug=True, plugins=[LoggingPlugin()])
 
 # Add custom exception handler
 @app.handle_exception(500)
-def handle_server_error(request, exc):
+def handle_server_error(ctx: Context, exc):
     """Custom handler for 500 Internal Server Error."""
     if app.debug:
-        return TextResponse(f"Server Error: {str(exc)}", status=500)
-    return JsonResponse({"error": "Internal server error"}, status=500)
+        ctx.text(f"Server Error: {str(exc)}", status=500)
+    else:
+        ctx.json({"error": "Internal server error"}, status=500)
 
 
 @app.handle_exception(401)
-def handle_unauthorized(request, exc):
+def handle_unauthorized(ctx: Context, exc):
     """Custom handler for 401 Unauthorized."""
-    return JsonResponse({"error": "Unauthorized access"}, status=401)
+    ctx.json({"error": "Unauthorized access"}, status=401)
 
 
 # Add routes with nested paths and specific plugins

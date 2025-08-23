@@ -36,17 +36,11 @@ def test_sign_and_verify():
     signature = _sign(data, "secret1")
     assert isinstance(signature, str)
     assert len(signature) > 0
-    assert _verify(data, signature, ["secret1"]) is True
+    assert _verify(data, signature, "secret1") is True
 
 
 def test_verify_with_invalid_signature():
-    assert _verify("test_data", "invalid_signature", ["secret1"]) is False
-
-
-def test_verify_with_multiple_secrets():
-    data = "test_data"
-    signature = _sign(data, "secret2")
-    assert _verify(data, signature, ["secret1", "secret2"]) is True
+    assert _verify("test_data", "invalid_signature", "secret1") is False
 
 
 def test_serialize_without_secrets():
@@ -87,7 +81,7 @@ def test_serialize_with_expires_int():
 
 def test_serialize_with_secrets():
     data = {"key": "value"}
-    serialized = serialize_cookie("test_cookie", data, secrets=["secret1"])
+    serialized = serialize_cookie("test_cookie", data, secret="secret1")
     assert "test_cookie" in serialized
     assert "." in serialized.split("test_cookie=")[1]
 
@@ -95,7 +89,7 @@ def test_serialize_with_secrets():
 def test_parse_without_secrets():
     data = {"key": "value", "number": 42}
     cookie_obj = SimpleCookie()
-    cookie_obj["test_cookie"] = json.dumps(data)
+    cookie_obj["test_cookie"] = base64.urlsafe_b64encode(json.dumps(data).encode()).decode()
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
     parsed = parse_cookie(cookie_header)
@@ -113,7 +107,7 @@ def test_parse_with_secrets():
     cookie_obj["test_cookie"] = signed_value
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = parse_cookie(cookie_header, secrets=["secret1"])
+    parsed = parse_cookie(cookie_header, secret="secret1")
     assert parsed["test_cookie"] == data
 
 
@@ -131,7 +125,7 @@ def test_parse_with_invalid_signature():
     cookie_obj["test_cookie"] = "dGVzdF9kYXRh.invalid_signature"
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = parse_cookie(cookie_header, secrets=["secret1"])
+    parsed = parse_cookie(cookie_header, secret=["secret1"])
     assert parsed["test_cookie"] is None
 
 
@@ -140,7 +134,7 @@ def test_parse_with_malformed_signed_cookie():
     cookie_obj["test_cookie"] = "dGVzdF9kYXRh"
     cookie_header = cookie_obj.output(header="", sep="").strip()
 
-    parsed = parse_cookie(cookie_header, secrets=["secret1"])
+    parsed = parse_cookie(cookie_header, secret=["secret1"])
     assert parsed["test_cookie"] is None
 
 
@@ -152,21 +146,6 @@ def test_parse_none_header():
 def test_parse_empty_header():
     parsed = parse_cookie("")
     assert parsed == {}
-
-
-def test_serialize_with_multiple_secrets_random_choice():
-    secrets = ["secret1", "secret2", "secret3"]
-    data = {"key": "value"}
-
-    serialized_cookies = []
-    for _ in range(10):
-        serialized_cookies.append(
-            serialize_cookie("test_cookie", data, secrets=secrets)
-        )
-
-    for serialized in serialized_cookies:
-        parsed = parse_cookie(serialized, secrets=secrets)
-        assert parsed["test_cookie"] == data
 
 
 def test_complex_data_serialization():
@@ -185,9 +164,9 @@ def test_complex_data_serialization():
 
 def test_parse_signed_cookie_with_wrong_secret():
     data = {"key": "value"}
-    serialized = serialize_cookie("test_cookie", data, secrets=["secret1"])
+    serialized = serialize_cookie("test_cookie", data, secret="secret1")
 
-    parsed = parse_cookie(serialized, secrets=["different_secret"])
+    parsed = parse_cookie(serialized, secret="different_secret")
     assert parsed["test_cookie"] is None
 
 
@@ -214,6 +193,6 @@ def test_parse_with_valid_simple_cookie():
 
 def test_parse_with_valid_signed_cookie():
     data = {"user_id": 123, "username": "testuser"}
-    serialized = serialize_cookie("test_cookie", data, secrets=["my_secret"])
-    parsed = parse_cookie(serialized, secrets=["my_secret"])
+    serialized = serialize_cookie("test_cookie", data, secret="my_secret")
+    parsed = parse_cookie(serialized, secret="my_secret")
     assert parsed["test_cookie"] == data

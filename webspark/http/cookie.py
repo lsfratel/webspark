@@ -1,7 +1,6 @@
 import base64
 import hashlib
 import hmac
-import random
 from datetime import datetime, timedelta
 from http.cookies import SimpleCookie
 from typing import Any
@@ -28,7 +27,7 @@ def _make_expires(date: datetime | int) -> str:
         return (datetime.now() + timedelta(seconds=date)).strftime(
             "%a, %d-%b-%Y %H:%M:%S GMT"
         )
-    raise ValueError("Date must be datetime or int")
+    raise ValueError("Date must be datetime or int.")
 
 
 def _sign(data: str, secret: str) -> str:
@@ -46,22 +45,21 @@ def _sign(data: str, secret: str) -> str:
     return base64.urlsafe_b64encode(signature).decode()
 
 
-def _verify(data: str, signature: str, secrets: list[str]) -> bool:
+def _verify(data: str, signature: str, secret: str):
     """
     Verify an HMAC signature against a list of possible secrets.
 
     Args:
         data: The original data that was signed
         signature: The signature to verify
-        secrets: List of possible secret keys to try
+        secret: The secret key to use for verification
 
     Returns:
         True if the signature is valid for any of the secrets, False otherwise
     """
-    for secret in secrets:
-        expected_signature = _sign(data, secret)
-        if hmac.compare_digest(expected_signature, signature):
-            return True
+    expected_signature = _sign(data, secret)
+    if hmac.compare_digest(expected_signature, signature):
+        return True
     return False
 
 
@@ -72,10 +70,10 @@ def serialize_cookie(
     path: str = "/",
     max_age: int = 3600,
     same_site: str = "Lax",
-    secrets: list[str] | None = None,
+    secret: str = None,
     secure: bool = False,
     http_only: bool = True,
-    expires: datetime | int | None = None,
+    expires: datetime | int = None,
 ) -> str:
     """
     Serialize data into a signed cookie string.
@@ -86,7 +84,7 @@ def serialize_cookie(
         path: Cookie path attribute (default: "/")
         max_age: Cookie max-age in seconds (default: 3600)
         same_site: SameSite attribute (default: "Lax")
-        secrets: List of secret keys for signing (optional)
+        secret: Secret key for signing (optional)
         secure: Whether to set Secure flag (default: False)
         http_only: Whether to set HttpOnly flag (default: True)
         expires: Expiration date as datetime or seconds from now (optional)
@@ -96,10 +94,12 @@ def serialize_cookie(
     """
     serialized_data = serialize_json(data).decode("utf-8")
 
-    if secrets:
-        signature = _sign(serialized_data, random.choice(secrets))
+    if secret:
+        signature = _sign(serialized_data, secret)
         serialized_data = base64.urlsafe_b64encode(serialized_data.encode()).decode()
         serialized_data = f"{serialized_data}.{signature}"
+    else:
+        serialized_data = base64.urlsafe_b64encode(serialized_data.encode()).decode()
 
     cookie = SimpleCookie()
     cookie[name] = serialized_data
@@ -120,16 +120,13 @@ def serialize_cookie(
     return cookie.output(header="", sep="").strip()
 
 
-def parse_cookie(
-    header: str | None,
-    secrets: list[str] | None = None,
-) -> dict[str, Any]:
+def parse_cookie(header: str, secret: str = None):
     """
     Parse cookies from a Cookie header string.
 
     Args:
         header: The Cookie header value to parse
-        secrets: List of secret keys for verifying signed cookies (optional)
+        secret: Secret key for verifying signed cookies (optional)
 
     Returns:
         A dictionary mapping cookie names to their deserialized values.
@@ -141,21 +138,20 @@ def parse_cookie(
     for name, morsel in cookie.items():
         value = morsel.value
 
-        if not secrets:
+        if "." in value:
             try:
-                parsed[name] = deserialize_json(value)
+                data, signature = value.rsplit(".", 1)
+                data = base64.urlsafe_b64decode(data).decode()
+                if _verify(data, signature, secret):
+                    parsed[name] = deserialize_json(data)
+                else:
+                    parsed[name] = None
             except Exception:
                 parsed[name] = None
-            continue
-
-        try:
-            data, signature = value.rsplit(".", 1)
-            data = base64.urlsafe_b64decode(data).decode()
-            if _verify(data, signature, secrets):
-                parsed[name] = deserialize_json(data)
-            else:
+        else:
+            try:
+                parsed[name] = deserialize_json(base64.urlsafe_b64decode(value))
+            except Exception:
                 parsed[name] = None
-        except Exception:
-            parsed[name] = None
 
     return parsed

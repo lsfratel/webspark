@@ -8,7 +8,7 @@ This example demonstrates:
 """
 
 from webspark.core import View, WebSpark, path
-from webspark.http import HTMLResponse, JsonResponse
+from webspark.http import Context
 from webspark.utils import env
 
 
@@ -40,9 +40,9 @@ app = WebSpark(config=AppConfig(), debug=AppConfig.DEBUG)
 
 # Sample view to show configuration
 class ConfigView(View):
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         # In a real app, you wouldn't expose sensitive config like this
-        return JsonResponse(
+        ctx.json(
             {
                 "debug": app.debug,
                 "config": {
@@ -51,18 +51,18 @@ class ConfigView(View):
                     "DATABASE_URL": getattr(app.config, "DATABASE_URL", None),
                 },
                 "request_info": {
-                    "host": request.host,
-                    "scheme": request.scheme,
-                    "ip": request.ip,
-                    "method": request.method,
-                    "path": request.path,
+                    "host": ctx.host,
+                    "scheme": ctx.scheme,
+                    "ip": ctx.ip,
+                    "method": ctx.method,
+                    "path": ctx.path,
                 },
             }
         )
 
 
 class HomeView(View):
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         html_content = (
             """
         <!DOCTYPE html>
@@ -109,7 +109,7 @@ class HomeView(View):
         </html>
         """
         )
-        return HTMLResponse(html_content)
+        ctx.html(html_content)
 
 
 # Add routes

@@ -10,7 +10,7 @@ import sqlite3
 from contextlib import contextmanager
 
 from webspark.core import View, WebSpark, path
-from webspark.http import JsonResponse
+from webspark.http import Context
 from webspark.schema import IntegerField, ObjectSchema, StringField
 from webspark.utils import HTTPException
 
@@ -64,9 +64,9 @@ class ProductUpdateSchema(ObjectSchema):
 class ProductListView(View):
     """Handle operations on the collection of products."""
 
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Return all products."""
-        category = request.query_params.get("category")
+        category = ctx.query_params.get("category")
 
         with get_db_connection() as conn:
             if category:
@@ -81,11 +81,11 @@ class ProductListView(View):
         for product in products:
             product["price_dollars"] = product["price"] / 100
 
-        return JsonResponse({"products": products})
+        ctx.json({"products": products})
 
-    def handle_post(self, request):
+    def handle_post(self, ctx: Context):
         """Create a new product."""
-        data = request.body
+        data = ctx.body
 
         # Simple validation
         required_fields = ["name", "price", "category"]
@@ -130,16 +130,16 @@ class ProductListView(View):
         # Convert price from cents to dollars for display
         product["price_dollars"] = product["price"] / 100
 
-        return JsonResponse(product, status=201)
+        ctx.json(product, status=201)
 
 
 class ProductDetailView(View):
     """Handle operations on a single product."""
 
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Return a specific product by ID."""
         try:
-            product_id = int(request.path_params["id"])
+            product_id = int(ctx.path_params["id"])
         except (ValueError, KeyError) as e:
             raise HTTPException("Invalid product ID", status_code=400) from e
 
@@ -153,16 +153,16 @@ class ProductDetailView(View):
         # Convert price from cents to dollars for display
         product["price_dollars"] = product["price"] / 100
 
-        return JsonResponse(product)
+        ctx.json(product)
 
-    def handle_put(self, request):
+    def handle_put(self, ctx: Context):
         """Update a specific product."""
         try:
-            product_id = int(request.path_params["id"])
+            product_id = int(ctx.path_params["id"])
         except (ValueError, KeyError) as e:
             raise HTTPException("Invalid product ID", status_code=400) from e
 
-        data = request.body
+        data = ctx.body
 
         # Check if product exists
         with get_db_connection() as conn:
@@ -223,12 +223,12 @@ class ProductDetailView(View):
         # Convert price from cents to dollars for display
         product["price_dollars"] = product["price"] / 100
 
-        return JsonResponse(product)
+        ctx.json(product)
 
-    def handle_delete(self, request):
+    def handle_delete(self, ctx: Context):
         """Delete a specific product."""
         try:
-            product_id = int(request.path_params["id"])
+            product_id = int(ctx.path_params["id"])
         except (ValueError, KeyError) as e:
             raise HTTPException("Invalid product ID", status_code=400) from e
 
@@ -240,7 +240,7 @@ class ProductDetailView(View):
             conn.execute("DELETE FROM products WHERE id = ?", (product_id,))
             conn.commit()
 
-        return JsonResponse({"message": "Product deleted"}, status=204)
+        ctx.json({"message": "Product deleted"}, status=204)
 
 
 # Create the app

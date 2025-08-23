@@ -45,14 +45,14 @@ Create a file named `app.py` and get a server running in under a minute.
 ```python
 # app.py
 from webspark.core import WebSpark, View, path
-from webspark.http import JsonResponse
+from webspark.http import Context
 
 # 1. Define a View
 class HelloView(View):
     """A view to handle requests to the root URL."""
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         # The `handle_get` method is automatically called for GET requests.
-        return JsonResponse({"message": "Hello, from WebSpark! ✨"})
+        ctx.json({"message": "Hello, from WebSpark! ✨"})
 
 # 2. Create the application instance
 app = WebSpark()
@@ -113,25 +113,25 @@ app.add_paths([
 Views handle the logic for your routes. They are classes that inherit from `webspark.core.views.View`.
 
 -   **Method Dispatch**: Requests are automatically routed to `handle_<method>` methods (e.g., `handle_get`, `handle_post`).
--   **Request Object**: Each handler method receives a `Request` object with all the request details.
+-   **Context Object**: Each handler method receives a `Context` object with all the request details.
 
 ```python
 from webspark.core import View
-from webspark.http import JsonResponse, HTMLResponse
+from webspark.http import Context
 
 class UserView(View):
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Handles GET /users/:id"""
-        user_id = request.path_params.get('id')
-        page = request.query_params.get('page', 1) # Access query params with a default
+        user_id = ctx.path_params.get('id')
+        page = ctx.query_params.get('page', 1) # Access query params with a default
 
-        return JsonResponse({"user_id": user_id, "page": page})
+        ctx.json({"user_id": user_id, "page": page})
 
-    def handle_post(self, request):
+    def handle_post(self, ctx):
         """Handles POST /users"""
-        data = request.body # Access parsed JSON body
+        data = ctx.body # Access parsed JSON body
         # ... create a new user ...
-        return JsonResponse({"created": True, "data": data}, status=201)
+        ctx.json({"created": True, "data": data}, status=201)
 ```
 
 ### 3. Schema Validation
@@ -155,13 +155,13 @@ Attach the schema to a view using the `body_schema` or `query_params_schema` att
 class CreateUserView(View):
     body_schema = UserSchema  # Validate the request body
 
-    def handle_post(self, request):
+    def handle_post(self, ctx: Context):
         # This method is only called if the body is valid.
         # Access the validated data:
         validated_data = self.validated_body()
 
         # ... process the data ...
-        return JsonResponse({"user": validated_data})
+        ctx.json({"user": validated_data})
 ```
 
 #### Available Fields
@@ -170,44 +170,42 @@ WebSpark offers a rich set of fields for comprehensive validation: `StringField`
 
 ### 4. Responses
 
-WebSpark provides convenient `Response` subclasses for common content types.
+WebSpark provides convenient `Context` that simplifies request handling and response generation.
 
 ```python
-from webspark.http import JsonResponse, HTMLResponse, TextResponse, StreamResponse, RedirectResponse
+from webspark.http import Context
 
 # JSON response (most common for APIs)
-return JsonResponse({"message": "Success"})
+ctx.json({"message": "Success"})
 
 # HTML response
-return HTMLResponse("<h1>Hello, World!</h1>")
+ctx.html("<h1>Hello, World!</h1>")
 
 # Plain text response
-return TextResponse("OK")
+ctx.text("OK")
 
 # Stream a large file without loading it all into memory
-return StreamResponse("/path/to/large/video.mp4")
+ctx.stream("/path/to/large/video.mp4")
 
 # Redirect response
-return RedirectResponse("/new-url")
+ctx.redirect("/new-url")
 ```
 
 ### 5. Cookies
 
-Easily set and delete cookies on the `Response` object.
+Easily set and delete cookies on the `Context` object.
 
 ```python
 class AuthView(View):
-    def handle_post(self, request):
+    def handle_post(self, ctx: Context):
         # Set a cookie on login
-        response = JsonResponse({"logged_in": True})
-        response.set_cookie("session_id", "abc123", path="/", max_age=3600, httponly=True, secure=True)
-        return response
+        ctx.set_cookie("session_id", "abc123", path="/", max_age=3600, httponly=True, secure=True)
+        ctx.json({"logged_in": True})
 
-    def handle_delete(self, request):
+    def handle_delete(self, ctx: Context):
         # Delete a cookie on logout
-        response = JsonResponse({"logged_out": True})
-        response.delete_cookie("session_id")
-        return response
+        ctx.delete_cookie("session_id")
+        ctx.json({"logged_out": True})
 ```
 
 ### 6. Middleware (Plugins)
@@ -222,11 +220,10 @@ from webspark.core import Plugin
 class LoggingPlugin(Plugin):
     def apply(self, handler):
         # This method returns a new handler that wraps the original one.
-        def wrapped_handler(request):
-            print(f"Request: {request.method} {request.path}")
-            response = handler(request) # The original view handler is called here
-            print(f"Response: {response.status}")
-            return response
+        def wrapped_handler(ctx):
+            print(f"Request: {ctx.method} {ctx.path}")
+            handler(ctx) # The original view handler is called here
+            print(f"Response: {ctx.status}")
         return wrapped_handler
 
 # Register the plugin globally
@@ -246,15 +243,15 @@ Gracefully handle errors using `HTTPException`. When raised, the framework will 
 from webspark.utils import HTTPException
 
 class UserView(View):
-    def handle_get(self, request):
-        user_id = request.path_params.get('id')
+    def handle_get(self, ctx):
+        user_id = ctx.path_params.get('id')
         user = find_user_by_id(user_id) # Your database logic
 
         if not user:
             # This will generate a 404 Not Found response
             raise HTTPException("User not found", status_code=404)
 
-        return JsonResponse({"user": user.serialize()})
+        ctx.json({"user": user.serialize()})
 ```
 
 ### 8. Custom Exception Handlers
@@ -264,22 +261,23 @@ WebSpark allows you to define custom handlers for specific HTTP status codes usi
 The handler function receives the `request` and the `exception` object and must return a `Response` object.
 
 ```python
-from webspark.http import HTMLResponse, TextResponse
+from webspark.http import Context
 
 app = WebSpark(debug=True)
 
 @app.handle_exception(404)
-def handle_not_found(request, exc):
+def handle_not_found(ctx: Context, exc: Exception):
     """Custom handler for 404 Not Found errors."""
-    return HTMLResponse("<h1>Oops! Page not found.</h1>", status=404)
+    ctx.html("<h1>Oops! Page not found.</h1>", status=404)
 
 @app.handle_exception(500)
-def handle_server_error(request, exc):
+def handle_server_error(ctx: Context, exc: Exception):
     """Custom handler for 500 Internal Server Error."""
     if app.debug:
         # In debug mode, show the full exception
-        return TextResponse(str(exc), status=500)
-    return HTMLResponse("<h1>A server error occurred.</h1>", status=500)
+        ctx.text(str(exc), status=500)
+    else:
+      ctx.html("<h1>A server error occurred.</h1>", status=500)
 ```
 
 ### 9. Proxy Configuration

@@ -33,7 +33,7 @@ source = "file"
 path = "webspark/__init__.py"
 
 [tool.pdm.scripts]
-test = "pytest --cov=webspark"
+tests = "pytest --cov=webspark --cov-branch"
 
 
 [tool.ruff]

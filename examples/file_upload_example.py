@@ -10,7 +10,7 @@ import os
 import uuid
 
 from webspark.core import View, WebSpark, path
-from webspark.http import JsonResponse, Request
+from webspark.http import Context
 from webspark.utils import HTTPException
 
 # Directory to store uploaded files
@@ -21,16 +21,16 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 class FileUploadView(View):
     """Handle file uploads."""
 
-    def handle_post(self, request: Request):
+    def handle_post(self, ctx: Context):
         """Handle file upload."""
         # Check if request has files
-        if not request.files:
+        if not ctx.files:
             raise HTTPException("No files uploaded", status_code=400)
 
         uploaded_files = []
 
         # Process each uploaded file
-        for field_name, file_list in request.files.items():
+        for field_name, file_list in ctx.files.items():
             if isinstance(file_list, list):
                 for file_info in file_list:
                     # Generate a unique filename
@@ -69,7 +69,7 @@ class FileUploadView(View):
                     }
                 )
 
-        return JsonResponse(
+        ctx.json(
             {
                 "message": f"Successfully uploaded {len(uploaded_files)} file(s)",
                 "files": uploaded_files,
@@ -81,7 +81,7 @@ class FileUploadView(View):
 class FileListView(View):
     """List uploaded files."""
 
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Return list of uploaded files."""
         files = []
         if os.path.exists(UPLOAD_DIR):
@@ -97,7 +97,7 @@ class FileListView(View):
                         }
                     )
 
-        return JsonResponse({"files": files})
+        ctx.json({"files": files})
 
 
 # Create the app

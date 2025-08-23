@@ -5,9 +5,8 @@ from functools import update_wrapper
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..http.request import Request
-    from ..http.response import Response
-    from .schema import ObjectSchema
+    from ..http import Context
+    from ..schema import ObjectSchema
 
 from ..constants import HTTP_METHODS
 from ..utils import HTTPException
@@ -27,19 +26,19 @@ class View:
             query_params_schema = UserQueryParamsSchema
             body_schema = UserBodySchema
 
-            def handle_get(self, request):
+            def handle_get(self, ctx):
                 # Validate query parameters
                 params = self.validated_query_params(raise_=True)
                 # Process request
                 users = get_users(**params)
-                return JsonResponse(users)
+                ctx.json(users)
 
             def handle_post(self, request):
                 # Validate request body
                 data = self.validated_body(raise_=True)
                 # Process request
                 user = create_user(**data)
-                return JsonResponse(user, status=201)
+                ctx.json(user, status=201)
 
         # Register the view
         app.add_paths([
@@ -59,29 +58,29 @@ class View:
     body_schema: type[ObjectSchema] | None = None
 
     @property
-    def request(self):
-        """Get the current request object.
+    def ctx(self):
+        """Get the current context object.
 
         Returns:
-            Request: The current request object.
+            Context: The context of the request being processed.
         """
-        return self.__request__
+        return self.__ctx__
 
-    @request.setter
-    def request(self, request: Request):
-        """Set the current request object.
+    @ctx.setter
+    def ctx(self, ctx: Context):
+        """Set the current context object.
 
         Args:
-            request: The request object to set.
+            ctx: The context object to set.
         """
-        self.__request__ = request
+        self.__ctx__ = ctx
 
     @classmethod
     def as_view(
         cls,
         actions: dict[str, str] = None,
         **initkwargs,
-    ) -> Callable[[Request], Response]:
+    ) -> Callable[[Context], None]:
         """Create a view function from a View class.
 
         This method converts a View class into a callable function that can be
@@ -121,26 +120,26 @@ class View:
 
         http_methods = actions.keys()
 
-        def view(request: Request, *args, **kwargs) -> Response:
+        def view(ctx: Context, *args, **kwargs):
             self = cls(**initkwargs)
             self.action_map = actions
-            request.ENV["webspark.view_instance"] = self
+            ctx.environ["webspark.view_instance"] = self
 
-            return self.dispatch(request, *args, **kwargs)
+            return self.dispatch(ctx, *args, **kwargs)
 
         update_wrapper(view, cls, updated=())
         view.http_methods = http_methods
 
         return view
 
-    def dispatch(self, request: Request, *args, **kwargs) -> Response:
+    def dispatch(self, ctx: Context, *args, **kwargs):
         """Dispatch the request to the appropriate handler method.
 
         This method sets up the view state and calls the handler method that
         corresponds to the request's HTTP method.
 
         Args:
-            request: The incoming HTTP request.
+            ctx: The context of the request being processed.
             *args: Positional arguments from URL pattern matching.
             **kwargs: Keyword arguments from URL pattern matching.
 
@@ -149,16 +148,16 @@ class View:
         """
         actions = self.action_map
 
-        if request.method not in actions:
+        if ctx.method not in actions:
             raise HTTPException("Method not allowed.", status_code=405)
 
         self.args = args
         self.kwargs = kwargs
-        self.request = request
+        self.ctx = ctx
 
-        handler = getattr(self, actions[request.method])
+        handler = getattr(self, actions[ctx.method])
 
-        return handler(request, *args, **kwargs)
+        return handler(ctx, *args, **kwargs)
 
     def build_ctx(self):
         """Build context dictionary for schema validation.
@@ -173,7 +172,7 @@ class View:
             "view": self,
             "args": self.args,
             "kwargs": self.kwargs,
-            "request": self.request,
+            "ctx": self.ctx,
         }
 
     def _validate_schema(
@@ -217,10 +216,10 @@ class View:
             dict: Validated query parameters or raw query parameters if no schema.
         """
         if not self.query_params_schema:
-            return self.request.query_params
+            return self.ctx.query_params
 
         return self._validate_schema(
-            self.query_params_schema, self.request.query_params, raise_
+            self.query_params_schema, self.ctx.query_params, raise_
         )
 
     def validated_body(self, raise_: bool = False):
@@ -236,6 +235,6 @@ class View:
             dict: Validated body or raw body if no schema.
         """
         if not self.body_schema:
-            return self.request.body
+            return self.ctx.body
 
-        return self._validate_schema(self.body_schema, self.request.body, raise_)
+        return self._validate_schema(self.body_schema, self.ctx.body, raise_)

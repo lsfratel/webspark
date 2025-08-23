@@ -7,7 +7,7 @@ This example demonstrates WebSpark's schema validation capabilities:
 """
 
 from webspark.core import View, WebSpark, path
-from webspark.http import JsonResponse
+from webspark.http import Context
 from webspark.schema import (
     BooleanField,
     EmailField,
@@ -36,11 +36,11 @@ class UserView(View):
 
     body_schema = UserSchema  # Attach the schema for automatic validation
 
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Return all users."""
-        return JsonResponse({"users": users})
+        ctx.json({"users": users})
 
-    def handle_post(self, request):
+    def handle_post(self, ctx: Context):
         """Create a new user with validation."""
         global next_id
 
@@ -59,21 +59,21 @@ class UserView(View):
         users.append(new_user)
         next_id += 1
 
-        return JsonResponse(new_user, status=201)
+        ctx.json(new_user, status=201)
 
 
 class UserDetailView(View):
     """Handle operations on a single user."""
 
-    def handle_get(self, request):
+    def handle_get(self, ctx: Context):
         """Return a specific user by ID."""
-        user_id = int(request.path_params["id"])
+        user_id = int(ctx.path_params["id"])
         user = next((user for user in users if user["id"] == user_id), None)
 
         if not user:
             raise HTTPException("User not found", status_code=404)
 
-        return JsonResponse(user)
+        ctx.json(user)
 
 
 # Create the app

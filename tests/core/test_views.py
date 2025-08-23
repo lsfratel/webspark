@@ -3,12 +3,12 @@ import pytest
 from webspark.core.views import DEFAULT_ACTIONS, View
 
 
-class MockRequest:
+class MockContext:
     def __init__(self, method="GET", query_params=None, body=None, env=None):
         self.method = method
         self.query_params = query_params or {}
         self.body = body or {}
-        self.ENV = env or {}
+        self.environ = env or {}
         self.args = ()
         self.kwargs = {}
 
@@ -46,13 +46,13 @@ def test_view_default_actions():
     assert len(DEFAULT_ACTIONS) == 9
 
 
-def test_view_request_property():
+def test_view_ctx_property():
     view = View()
-    request = MockRequest()
+    ctx = MockContext()
 
-    view.request = request
-    assert view.request is request
-    assert view.__request__ is request
+    view.ctx = ctx
+    assert view.ctx is ctx
+    assert view.__ctx__ is ctx
 
 
 def test_view_as_view_default_actions():
@@ -115,20 +115,20 @@ def test_view_as_view_head_automatically_added():
 
 def test_view_dispatch():
     class TestView(View):
-        def handle_get(self, request, *args, **kwargs):
+        def handle_get(self, ctx, *args, **kwargs):
             return MockResponse(f"get_response_{args}_{kwargs}")
 
     view = TestView()
     view.action_map = {"get": "handle_get"}
-    request = MockRequest(method="get")
+    ctx = MockContext(method="get")
 
-    response = view.dispatch(request, "arg1", "arg2", kwarg1="value1")
+    response = view.dispatch(ctx, "arg1", "arg2", kwarg1="value1")
 
     assert isinstance(response, MockResponse)
     assert hasattr(view, "args")
     assert hasattr(view, "kwargs")
-    assert hasattr(view, "request")
-    assert view.request is request
+    assert hasattr(view, "ctx")
+    assert view.ctx is ctx
 
 
 def test_view_dispatch_with_custom_action():
@@ -138,7 +138,7 @@ def test_view_dispatch_with_custom_action():
 
     view = TestView()
     view.action_map = {"post": "custom_handler"}
-    request = MockRequest(method="post")
+    request = MockContext(method="post")
 
     response = view.dispatch(request)
 
@@ -150,7 +150,7 @@ def test_view_build_ctx():
     view = View()
     view.args = ("arg1", "arg2")
     view.kwargs = {"kwarg1": "value1"}
-    view.request = MockRequest()
+    view.ctx = MockContext()
 
     ctx = view.build_ctx()
 
@@ -158,13 +158,13 @@ def test_view_build_ctx():
     assert ctx["view"] is view
     assert ctx["args"] == ("arg1", "arg2")
     assert ctx["kwargs"] == {"kwarg1": "value1"}
-    assert ctx["request"] is view.request
+    assert ctx["ctx"] is view.ctx
 
 
 def test_view_validated_query_params_no_schema():
     view = View()
     query_params = {"key": "value"}
-    view.request = MockRequest(query_params=query_params)
+    view.ctx = MockContext(query_params=query_params)
 
     result = view.validated_query_params()
 
@@ -174,7 +174,7 @@ def test_view_validated_query_params_no_schema():
 def test_view_validated_body_no_schema():
     view = View()
     body = {"key": "value"}
-    view.request = MockRequest(body=body)
+    view.ctx = MockContext(body=body)
 
     result = view.validated_body()
 
@@ -189,7 +189,7 @@ def test_view_with_no_schema_methods():
             return MockResponse({"params": params, "body": body})
 
     view_func = SimpleView.as_view()
-    request = MockRequest(
+    request = MockContext(
         method="get", query_params={"q": "search"}, body={"data": "test"}
     )
 
@@ -235,13 +235,13 @@ def test_view_validate_schema_integration():
 
     view_func = SchemaView.as_view()
     env = {}
-    request = MockRequest(method="get", env=env)
+    request = MockContext(method="get", env=env)
 
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data == "success"
 
-    request = MockRequest(method="post")
+    request = MockContext(method="post")
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data == "success"
@@ -257,13 +257,13 @@ def test_view_full_integration():
 
     view_func = UserView.as_view()
     env = {}
-    request = MockRequest(method="get", env=env)
+    request = MockContext(method="get", env=env)
 
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data["action"] == "get"
 
-    request = MockRequest(method="post")
+    request = MockContext(method="post")
     response = view_func(request)
     assert isinstance(response, MockResponse)
     assert response.data["action"] == "post"
@@ -271,15 +271,15 @@ def test_view_full_integration():
 
 def test_view_dispatch_sets_attributes():
     class TestView(View):
-        def handle_get(self, request):
+        def handle_get(self, ctx):
             assert hasattr(self, "args")
             assert hasattr(self, "kwargs")
-            assert hasattr(self, "request")
+            assert hasattr(self, "ctx")
             return MockResponse("success")
 
     view_func = TestView.as_view()
     env = {}
-    request = MockRequest(method="get", env=env)
+    request = MockContext(method="get", env=env)
 
     response = view_func(request)
     assert isinstance(response, MockResponse)
@@ -298,7 +298,7 @@ def test_view_as_view_with_initkwargs():
     view_func = TestView.as_view(custom_param="test_value")
 
     env = {}
-    request = MockRequest(method="get", env=env)
+    request = MockContext(method="get", env=env)
 
     response = view_func(request)
 
@@ -327,7 +327,7 @@ def test_view_query_params_schema_none():
 
     view = TestView()
     query_params = {"key": "value"}
-    view.request = MockRequest(query_params=query_params)
+    view.ctx = MockContext(query_params=query_params)
 
     result = view.validated_query_params()
 
@@ -340,7 +340,7 @@ def test_view_body_schema_none():
 
     view = TestView()
     body = {"key": "value"}
-    view.request = MockRequest(body=body)
+    view.ctx = MockContext(body=body)
 
     result = view.validated_body()
 
@@ -399,21 +399,21 @@ def test_view_as_view_with_head_action():
 
 def test_view_request_setter():
     view = View()
-    request = MockRequest()
+    ctx = MockContext()
 
-    view.request = request
-    assert view.request is request
-    assert view.__request__ is request
+    view.ctx = ctx
+    assert view.ctx is ctx
+    assert view.__ctx__ is ctx
 
-    assert view.request is request
+    assert view.ctx is ctx
 
 
 def test_view_request_property_getter():
     view = View()
-    request = MockRequest()
+    ctx = MockContext()
 
-    view.__request__ = request
-    assert view.request is request
+    view.__ctx__ = ctx
+    assert view.ctx is ctx
 
 
 def test_view_dispatch_handler_not_found():
@@ -422,7 +422,7 @@ def test_view_dispatch_handler_not_found():
 
     view = TestView()
     view.action_map = {"get": "nonexistent_handler"}
-    request = MockRequest(method="get")
+    request = MockContext(method="get")
 
     with pytest.raises(AttributeError):
         view.dispatch(request)
@@ -432,20 +432,20 @@ def test_view_build_ctx_with_empty_args():
     view = View()
     view.args = ()
     view.kwargs = {}
-    view.request = MockRequest()
+    view.ctx = MockContext()
 
     ctx = view.build_ctx()
 
     assert ctx["args"] == ()
     assert ctx["kwargs"] == {}
-    assert ctx["request"] is view.request
+    assert ctx["ctx"] is view.ctx
 
 
 def test_view_build_ctx_with_populated_args():
     view = View()
     view.args = ("arg1", "arg2")
     view.kwargs = {"kwarg1": "value1", "kwarg2": "value2"}
-    view.request = MockRequest()
+    view.ctx = MockContext()
 
     ctx = view.build_ctx()
 
