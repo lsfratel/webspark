@@ -1,5 +1,13 @@
-from collections.abc import Callable
-from typing import Any, Generic, TypeVar
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import Any
+
+    from ..core.plugin import Plugin
+    from ..http.context import Context
 
 T = TypeVar("T")
 
@@ -58,3 +66,36 @@ class cached_property(Generic[T]):
             value = self.func(obj)
             obj.__dict__[self.__name__] = value
         return value
+
+
+def apply(*plugins: Plugin):
+    """
+    Decorator factory that composes and applies a sequence of plugins.
+
+    Each argument is a p instance carrying a Plugin class (or callable)
+    and keyword arguments to initialize it. The plugins are instantiated
+    immediately and their apply methods are composed over the target
+    function in the order provided.
+
+    Args:
+        *plugins: One or more p instances describing plugins to apply.
+
+    Returns:
+        A decorator that applies the given plugins to the target function.
+    """
+
+    def wrapper(func: Callable[[Context, ...], Any]):
+        """
+        Apply all initialized plugins to the given function.
+
+        Args:
+            func: The function to decorate.
+
+        Returns:
+            The function wrapped by all plugins.
+        """
+        for plugin in plugins:
+            func = plugin.apply(func)
+        return func
+
+    return wrapper

@@ -50,6 +50,9 @@ This directory contains several self-contained examples demonstrating different 
    - Demonstrating basic API with token-based authentication
    - Securing endpoints with authentication
 
+10. **[schema_plugin_example.py](schema_plugin_example.py)** - Using PluginSchema for request validation
+    - Demostrating the use of PluginSchema to validate data
+
 ## Running the Examples
 
 To run any of these examples, use a WSGI server like Gunicorn:
@@ -68,6 +71,7 @@ gunicorn examples.file_upload_example:app
 gunicorn examples.database_example:app
 gunicorn examples.cors_example:app
 gunicorn examples.auth_example:app
+gunicorn examples.schema_plugin_example:app
 ```
 
 Or with PDM (if developing locally):

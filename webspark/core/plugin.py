@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from collections import abc
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..http import Request, Response
+    from collections.abc import Callable
+    from typing import Any
+
+    from ..http.context import Context
 
 
 class Plugin:
@@ -17,11 +19,10 @@ class Plugin:
     Example:
         class LoggingPlugin(Plugin):
             def apply(self, handler):
-                def wrapped_handler(request):
-                    print(f"Handling request: {request.path}")
-                    response = handler(request)
-                    print(f"Response status: {response.status}")
-                    return response
+                def wrapped_handler(ctx):
+                    print(f"Handling request: {ctx.path}")
+                    handler(ctx)
+                    print(f"Response status: {ctx.status}")
                 return wrapped_handler
 
         # Apply globally
@@ -38,7 +39,7 @@ class Plugin:
 
     def apply(
         self,
-        handler: abc.Callable[[Request], Response],
+        handler: Callable[[Context, ...], Any],
     ):
         """Apply the plugin to a request handler.
 

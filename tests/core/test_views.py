@@ -161,44 +161,6 @@ def test_view_build_ctx():
     assert ctx["ctx"] is view.ctx
 
 
-def test_view_validated_query_params_no_schema():
-    view = View()
-    query_params = {"key": "value"}
-    view.ctx = MockContext(query_params=query_params)
-
-    result = view.validated_query_params()
-
-    assert result == query_params
-
-
-def test_view_validated_body_no_schema():
-    view = View()
-    body = {"key": "value"}
-    view.ctx = MockContext(body=body)
-
-    result = view.validated_body()
-
-    assert result == body
-
-
-def test_view_with_no_schema_methods():
-    class SimpleView(View):
-        def handle_get(self, request):
-            params = self.validated_query_params()
-            body = self.validated_body()
-            return MockResponse({"params": params, "body": body})
-
-    view_func = SimpleView.as_view()
-    request = MockContext(
-        method="get", query_params={"q": "search"}, body={"data": "test"}
-    )
-
-    response = view_func(request)
-    assert isinstance(response, MockResponse)
-    assert response.data["params"] == {"q": "search"}
-    assert response.data["body"] == {"data": "test"}
-
-
 def test_view_as_view_function_attributes():
     class TestView(View):
         def handle_get(self, request):
@@ -321,42 +283,6 @@ def test_view_as_view_with_hasattr_check():
     assert "post" in view_func.http_methods
 
 
-def test_view_query_params_schema_none():
-    class TestView(View):
-        query_params_schema = None
-
-    view = TestView()
-    query_params = {"key": "value"}
-    view.ctx = MockContext(query_params=query_params)
-
-    result = view.validated_query_params()
-
-    assert result == query_params
-
-
-def test_view_body_schema_none():
-    class TestView(View):
-        body_schema = None
-
-    view = TestView()
-    body = {"key": "value"}
-    view.ctx = MockContext(body=body)
-
-    result = view.validated_body()
-
-    assert result == body
-
-
-def test_view_schema_validation_methods_exist():
-    view = View()
-    assert hasattr(view, "_validate_schema")
-    assert callable(view._validate_schema)
-    assert hasattr(view, "validated_query_params")
-    assert callable(view.validated_query_params)
-    assert hasattr(view, "validated_body")
-    assert callable(view.validated_body)
-
-
 def test_view_as_view_no_actions_default_behavior():
     class TestView(View):
         def handle_get(self, request):
@@ -451,21 +377,3 @@ def test_view_build_ctx_with_populated_args():
 
     assert ctx["args"] == ("arg1", "arg2")
     assert ctx["kwargs"] == {"kwarg1": "value1", "kwarg2": "value2"}
-
-
-def test_view_validate_schema_method_exists():
-    view = View()
-    assert hasattr(view, "_validate_schema")
-    assert callable(view._validate_schema)
-
-
-def test_view_validated_query_params_method_exists():
-    view = View()
-    assert hasattr(view, "validated_query_params")
-    assert callable(view.validated_query_params)
-
-
-def test_view_validated_body_method_exists():
-    view = View()
-    assert hasattr(view, "validated_body")
-    assert callable(view.validated_body)

@@ -90,6 +90,7 @@ Check out the [examples](examples/) directory for more comprehensive examples:
 7. **[Database Integration](examples/database_example.py)** - Working with databases
 8. **[CORS](examples/cors_example.py)** - Cross-Origin Resource Sharing configuration
 9. **[Token Auth](examples/auth_example.py)** - Token-based authentication
+10. **[Schema Plugin](examples/schema_plugin_example.py)** - Schema validation with the SchemaPlugin
 
 ---
 
@@ -164,21 +165,21 @@ class UserSchema(ObjectSchema):
     name = StringField(required=True, max_length=100)
     age = IntegerField(min_value=18)
     email = EmailField(required=True)
-```
 
-Attach the schema to a view using the `body_schema` or `query_params_schema` attributes.
 
-```python
 class CreateUserView(View):
-    body_schema = UserSchema  # Validate the request body
 
     def handle_post(self, ctx: Context):
         # This method is only called if the body is valid.
         # Access the validated data:
-        validated_data = self.validated_body()
+
+        schema_instance = UserSchema(data=ctx.body)
+
+        if not schema_instance.is_valid():
+            raise HTTPException(schema_instance.errors, status_code=400)
 
         # ... process the data ...
-        ctx.json({"user": validated_data})
+        ctx.json({"user": schema_instance.validated_data})
 ```
 
 #### Available Fields
@@ -362,6 +363,50 @@ app.add_paths([
     -   If no valid token is found, the plugin returns a `401 Unauthorized` response with a `WWW-Authenticate` header.
     -   If the token is successfully validated by the `token_loader` function, the returned user object is attached to the context as `ctx.state["user"]` and the request proceeds to the view.
 
+#### Schema Validation Plugin
+
+WebSpark provides a `SchemaPlugin` for validating data from the request context using an `ObjectSchema`. This plugin can validate any data accessible through the context object, such as the request body, query parameters, or path parameters.
+
+The plugin reads a value from the view context using `ctx_prop`. If that value is callable, it is invoked with `ctx_args` to obtain the data. The data is then validated using the provided `schema`. If validation succeeds, the validated data is injected into the handler's keyword arguments. If validation fails, an HTTPException with status code 400 is raised.
+
+You can apply the SchemaPlugin using the `@apply` decorator from `webspark.utils.decorators`:
+
+```python
+from webspark.contrib.plugins import SchemaPlugin
+from webspark.core import View
+from webspark.http import Context
+from webspark.schema import ObjectSchema, StringField, IntegerField
+from webspark.utils import apply
+
+# Define a schema for validation
+class UserSchema(ObjectSchema):
+    name = StringField(required=True, max_length=100)
+    age = IntegerField(min_value=1, max_value=120)
+
+class UserView(View):
+    @apply(
+        SchemaPlugin(UserSchema, ctx_prop="body", kw="validated_body"),
+    )
+    def handle_post(self, ctx: Context, validated_body: dict):
+        # The validated_body parameter contains the validated data
+        ctx.json({"received": validated_body}, status=201)
+```
+
+In this example:
+- `ctx_prop="body"` tells the plugin to read data from `ctx.body`
+- `kw="validated_body"` specifies that the validated data should be passed to the handler as the `validated_body` keyword argument
+- If validation fails, an HTTP 400 error is automatically returned with details about the validation errors
+
+You can also apply the plugin to a specific path when registering routes:
+
+```python
+app.add_paths([
+    path("/users", view=UserView.as_view(), plugins=[
+        SchemaPlugin(UserSchema, ctx_prop="body", kw="validated_body")
+    ])
+])
+```
+
 ### 7. Error Handling
 
 Gracefully handle errors using `HTTPException`. When raised, the framework will catch it and generate a standardized JSON error response.
@@ -535,6 +580,7 @@ webspark/
   - `CORSPlugin` - Handles Cross-Origin Resource Sharing.
   - `AllowedHostsPlugin` - Validates incoming Host headers.
   - `TokenAuthPlugin` - Token-based authentication middleware for securing endpoints.
+  - `SchemaPlugin` - Validates data from the request context using ObjectSchema.
 
 - **http/** - HTTP abstractions:
   - `Context` - Request/response context object

@@ -1,4 +1,4 @@
-from .decorators import cached_property
+from .decorators import apply, cached_property
 from .env import env
 from .exceptions import HTTPException
 from .json import deserialize_json, serialize_json
@@ -9,4 +9,5 @@ __all__ = [
     "deserialize_json",
     "serialize_json",
     "env",
+    "apply",
 ]

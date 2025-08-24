@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Any
 
-    from ..http.request import Request
-    from ..http.response import Response
+    from ..http.context import Context
     from .plugin import Plugin
 
 
@@ -203,7 +203,7 @@ class path:
         self,
         pattern: str,
         *,
-        view: Callable[[Request], Response] = None,
+        view: Callable[[Context, ...], Any] = None,
         children: list[path] = None,
         plugins: list[Plugin] = None,
     ):
