@@ -23,7 +23,7 @@ def test_apply_single_plugin():
         return "success"
 
     # Create a plugin
-    plugin = SchemaPlugin(schema=UserSchema, prop="body", kw="validated_data")
+    plugin = SchemaPlugin(schema=UserSchema, prop="body", param="validated_data")
 
     # Apply the plugin using the apply decorator
     decorated_handler = apply(plugin)(mock_handler)
@@ -97,7 +97,7 @@ def test_apply_plugin_validation_failure():
         raise AssertionError("Handler should not be called when validation fails")
 
     # Create a plugin
-    plugin = SchemaPlugin(schema=UserSchema, prop="body", kw="validated_data")
+    plugin = SchemaPlugin(schema=UserSchema, prop="body", param="validated_data")
 
     # Apply the plugin using the apply decorator
     decorated_handler = apply(plugin)(mock_handler)

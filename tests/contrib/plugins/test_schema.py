@@ -46,20 +46,20 @@ def test_schema_plugin_initialization():
     )
     assert plugin.schema == UserSchema
     assert plugin.prop == "body"
-    assert plugin.args == ()
-    assert plugin.kw is None
+    assert plugin.kwargs == {}
+    assert plugin.param is None
 
     # Initialization with all parameters
     plugin = SchemaPlugin(
         schema=UserSchema,
         prop="query_params",
-        args=("arg1", "arg2"),
-        kw="validated_data",
+        kwargs={"partial": True},
+        param="validated_data",
     )
     assert plugin.schema == UserSchema
     assert plugin.prop == "query_params"
-    assert plugin.args == ("arg1", "arg2")
-    assert plugin.kw == "validated_data"
+    assert plugin.kwargs == {"partial": True}
+    assert plugin.param == "validated_data"
 
 
 def test_schema_plugin_apply_success(schema_plugin, mock_view):
@@ -81,35 +81,6 @@ def test_schema_plugin_apply_success(schema_plugin, mock_view):
     # Execute the wrapped handler
     result = wrapped_handler(mock_view)
 
-    assert result == "success"
-
-
-def test_schema_plugin_apply_with_callable_prop(schema_plugin, mock_view):
-    """Test validation when prop is a callable."""
-
-    def mock_handler(view, data=None):
-        assert data == {"name": "Jane", "age": 25}
-        return "success"
-
-    # Create a plugin that uses a callable prop
-    callable_plugin = SchemaPlugin(
-        schema=UserSchema, prop="get_data", args=("param1", "param2"), kw="data"
-    )
-
-    # Mock the context with a callable that returns data
-    mock_context = Mock()
-    mock_context.get_data = Mock(return_value={"name": "Jane", "age": 25})
-    mock_view.ctx = mock_context
-    mock_view.build_ctx.return_value = {}
-
-    # Apply the plugin
-    wrapped_handler = callable_plugin.apply(mock_handler)
-
-    # Execute the wrapped handler
-    result = wrapped_handler(mock_view)
-
-    # Verify the callable was called with the correct arguments
-    mock_context.get_data.assert_called_once_with("param1", "param2")
     assert result == "success"
 
 
@@ -146,7 +117,7 @@ def test_schema_plugin_apply_with_custom_kw(schema_plugin, mock_view):
         return "success"
 
     # Create a plugin with a custom kw
-    custom_plugin = SchemaPlugin(schema=UserSchema, prop="body", kw="custom_data")
+    custom_plugin = SchemaPlugin(schema=UserSchema, prop="body", param="custom_data")
 
     # Mock the context with valid data
     mock_context = Mock()

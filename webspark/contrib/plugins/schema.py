@@ -16,76 +16,68 @@ from ...utils.exceptions import HTTPException
 
 
 class SchemaPlugin(Plugin):
-    """Plugin that validates data from the request context using a Schema.
+    """Plugin that validates data from a Context attribute using a Schema.
 
-    The plugin reads a value from the view context using `prop`. If that
-    value is callable, it is invoked with `args` to obtain the data. The
-    data is then validated using the provided `schema`. If validation succeeds,
-    the validated data is injected into the handler's keyword arguments under
-    the name provided by `kw` (or `prop` if `kw` is None). If validation
-    fails, an HTTPException with status code 400 is raised.
+    It reads data from ctx.<prop>, validates it with the provided
+    Schema, raises HTTPException(400) on failure, and, on success, injects
+    the validated data into the handler's kwargs under <param or prop>.
     """
 
-    __slots__ = ("schema", "prop", "args", "kw")
+    __slots__ = ("schema", "prop", "kwargs", "param")
 
     def __init__(
         self,
         schema: type[Schema],
         *,
         prop: str,
-        args: tuple = None,
-        kw: str = None,
+        param: str = None,
+        kwargs: dict = None,
     ):
         """Initialize the SchemaPlugin.
 
         Args:
-            schema: The Schema subclass used to validate the input data.
-            prop: The attribute name on the Context from which to read data.
-            args: Optional positional arguments used if the context attribute
-                is callable; defaults to an empty tuple.
-            kw: Optional keyword name under which to pass validated data to the
-                handler; if None, `prop` is used.
+            schema: A Schema class used to validate the incoming data.
+            prop: Name of the Context attribute to read (e.g., 'json', 'query', 'form').
+            param: Optional name for the keyword argument passed to the handler.
+                   If omitted, the value of 'prop' is used.
+            kwargs: Extra keyword arguments forwarded to the Schema constructor.
         """
         self.schema = schema
         self.prop = prop
-        self.args = args or ()
-        self.kw = kw
+        self.kwargs = kwargs or {}
+        self.param = param
 
     def apply(self, handler: Callable[[Context, ...], Any]):
-        """Wrap a view handler with schema validation against context data.
+        """Decorate a handler to run schema validation before execution.
 
-        The wrapped handler will:
-        - Read data from `view.ctx.<prop>`
-        - Call it with `args` if it is callable
-        - Validate the data using the configured schema
-        - Raise HTTPException(400) if validation fails
-        - Pass the validated data to the handler via keyword argument `kw`
-          (or `prop` if `kw` is not provided)
+        The wrapper validates data taken from the configured Context property and
+        passes the validated data to the handler as a keyword argument.
 
         Args:
-            handler: The view handler function to wrap.
+            handler: The view handler function to decorate.
 
         Returns:
-            A callable that enforces schema validation before calling the handler.
+            A callable that performs validation then calls the original handler.
         """
 
         @wraps(handler)
         def wrapper(view: View, *args, **kw: Any):
+            """Validate incoming data from the Context and call the handler."""
             ctx = view.ctx
 
             schema = self.schema
             data = getattr(ctx, self.prop)
 
             if callable(data):
-                data = data(*self.args)
+                raise ValueError("Property must not be callable.")
 
-            schema_instance = schema(data=data, context=view.build_ctx())
+            schema_instance = schema(data=data, context=view.build_ctx(), **self.kwargs)
             is_valid = schema_instance.is_valid()
 
             if not is_valid:
                 raise HTTPException(schema_instance.errors, status_code=400)
 
-            kw.update({self.kw or self.prop: schema_instance.validated_data})
+            kw.update({self.param or self.prop: schema_instance.validated_data})
 
             return handler(view, *args, **kw)
 

@@ -59,17 +59,21 @@ class Schema(metaclass=SchemaMeta):
         self,
         data: dict = None,
         context: dict = None,
+        partial: bool = False,
     ):
         """Initialize a Schema.
 
         Args:
             data: The data to validate.
             context: Additional context for validation.
+            partial: Make all fields required=False.
         """
+        self._errors = {}
+        self._validated_data = None
+
+        self.partial = partial
         self.initial_data = data or {}
         self.context = context or {}
-        self._validated_data = None
-        self._errors = {}
         self.fields: dict[str, BaseField] = self._declared_fields
 
     @property
@@ -131,6 +135,9 @@ class Schema(metaclass=SchemaMeta):
             raw_value = initial_data.get(source_name, UNDEFINED)
 
             if raw_value in (UNDEFINED, None):
+                if raw_value is UNDEFINED and self.partial:
+                    continue
+
                 if field.default is not None:
                     raw_value = field.default
 

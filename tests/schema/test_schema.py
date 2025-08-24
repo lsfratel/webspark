@@ -100,7 +100,7 @@ def test_base_field_to_representation():
     assert result == value
 
 
-def test_object_schema_meta():
+def test_schema_meta():
     class TestSchema(Schema):
         field1 = StringField()
         field2 = IntegerField()
@@ -112,7 +112,7 @@ def test_object_schema_meta():
     assert isinstance(TestSchema._declared_fields["field2"], IntegerField)
 
 
-def test_object_schema_inheritance():
+def test_schema_inheritance():
     class BaseSchema(Schema):
         base_field = StringField()
 
@@ -123,7 +123,7 @@ def test_object_schema_inheritance():
     assert "child_field" in ChildSchema._declared_fields
 
 
-def test_object_schema_initialization():
+def test_schema_initialization():
     class TestSchema(Schema):
         pass
 
@@ -138,7 +138,7 @@ def test_object_schema_initialization():
     assert schema.fields == {}
 
 
-def test_object_schema_properties():
+def test_schema_properties():
     class TestSchema(Schema):
         pass
 
@@ -153,7 +153,7 @@ def test_object_schema_properties():
         _ = schema.validated_data
 
 
-def test_object_schema_validate():
+def test_schema_validate():
     class TestSchema(Schema):
         pass
 
@@ -163,7 +163,7 @@ def test_object_schema_validate():
     assert result == data
 
 
-def test_object_schema_is_valid_no_data():
+def test_schema_is_valid_no_data():
     class TestSchema(Schema):
         pass
 
@@ -174,7 +174,7 @@ def test_object_schema_is_valid_no_data():
     assert schema.errors == {}
 
 
-def test_object_schema_is_valid_with_field_errors():
+def test_schema_is_valid_with_field_errors():
     class TestSchema(Schema):
         required_field = StringField(required=True)
 
@@ -186,7 +186,7 @@ def test_object_schema_is_valid_with_field_errors():
     assert "This field is required." in schema.errors["required_field"]
 
 
-def test_object_schema_is_valid_with_custom_validation_error():
+def test_schema_is_valid_with_custom_validation_error():
     class TestSchema(Schema):
         def validate(self, data):
             raise HTTPException({"custom": ["Custom error"]}, status_code=400)
@@ -198,7 +198,7 @@ def test_object_schema_is_valid_with_custom_validation_error():
     assert schema.errors == {"custom": ["Custom error"]}
 
 
-def test_object_schema_is_valid_success():
+def test_schema_is_valid_success():
     class TestSchema(Schema):
         name = StringField()
         age = IntegerField()
@@ -881,7 +881,7 @@ def test_serializer_field_to_representation_none():
     assert result is None
 
 
-def test_object_schema_full_integration():
+def test_schema_full_integration():
     class UserSchema(Schema):
         name = StringField(max_length=50)
         age = IntegerField(min_value=0, max_value=150)
@@ -913,7 +913,7 @@ def test_object_schema_full_integration():
     assert schema.validated_data["tags"] == ["developer", "python"]
 
 
-def test_object_schema_custom_validation_error():
+def test_schema_custom_validation_error():
     class UserSchema(Schema):
         age = IntegerField()
 
@@ -930,3 +930,17 @@ def test_object_schema_custom_validation_error():
     assert schema.is_valid() is False
     assert "age" in schema.errors
     assert "Must be at least 18 years old." in schema.errors["age"][0]
+
+
+def test_schema_partial():
+    class UserSchema(Schema):
+        name = StringField(required=True)
+        age = IntegerField(required=True)
+        email = EmailField(required=True)
+
+    data = {"name": "John Doe"}
+    schema = UserSchema(data, partial=True)
+
+    assert schema.is_valid() is True
+    assert schema.errors == {}
+    assert schema.validated_data == {"name": "John Doe"}

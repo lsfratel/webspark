@@ -368,7 +368,7 @@ app.add_paths([
 
 WebSpark provides a `SchemaPlugin` for validating data from the request context using an `Schema`. This plugin can validate any data accessible through the context object, such as the request body, query parameters, or path parameters.
 
-The plugin reads a value from the view context using `prop`. If that value is callable, it is invoked with `args` to obtain the data. The data is then validated using the provided `schema`. If validation succeeds, the validated data is injected into the handler's keyword arguments. If validation fails, an HTTPException with status code 400 is raised.
+The plugin reads a value from the view context using `prop`. If that value is callable, it raises `ValueError`. The data is then validated using the provided `schema`. If validation succeeds, the validated data is injected into the handler's keyword arguments. If validation fails, an `HTTPException` with status code 400 is raised.
 
 You can apply the SchemaPlugin using the `@apply` decorator from `webspark.utils.decorators`:
 
@@ -386,7 +386,7 @@ class UserSchema(Schema):
 
 class UserView(View):
     @apply(
-        SchemaPlugin(UserSchema, prop="body", kw="validated_body"),
+        SchemaPlugin(UserSchema, prop="body", param="validated_body"),
     )
     def handle_post(self, ctx: Context, validated_body: dict):
         # The validated_body parameter contains the validated data
@@ -395,7 +395,7 @@ class UserView(View):
 
 In this example:
 - `prop="body"` tells the plugin to read data from `ctx.body`
-- `kw="validated_body"` specifies that the validated data should be passed to the handler as the `validated_body` keyword argument
+- `param="validated_body"` specifies that the validated data should be passed to the handler as the `validated_body` keyword argument
 - If validation fails, an HTTP 400 error is automatically returned with details about the validation errors
 
 You can also apply the plugin to a specific path when registering routes:
@@ -403,7 +403,7 @@ You can also apply the plugin to a specific path when registering routes:
 ```python
 app.add_paths([
     path("/users", view=UserView.as_view(), plugins=[
-        SchemaPlugin(UserSchema, prop="body", kw="validated_body")
+        SchemaPlugin(UserSchema, prop="body", param="validated_body")
     ])
 ])
 ```
