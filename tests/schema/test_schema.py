@@ -6,7 +6,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from webspark.schema.fields import (
+from webspark.utils import HTTPException
+from webspark.validation import Schema
+from webspark.validation.fields import (
     UNDEFINED,
     BaseField,
     BooleanField,
@@ -24,8 +26,6 @@ from webspark.schema.fields import (
     URLField,
     UUIDField,
 )
-from webspark.schema.schema import Schema
-from webspark.utils import HTTPException
 
 
 def test_base_field_initialization():

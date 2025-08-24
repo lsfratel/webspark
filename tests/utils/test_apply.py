@@ -4,10 +4,10 @@ import pytest
 
 from webspark.contrib.plugins.schema import SchemaPlugin
 from webspark.core.views import View
-from webspark.schema.fields import IntegerField, StringField
-from webspark.schema.schema import Schema
 from webspark.utils import HTTPException
 from webspark.utils.decorators import apply
+from webspark.validation import Schema
+from webspark.validation.fields import IntegerField, StringField
 
 
 # Sample schema for testing

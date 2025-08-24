@@ -8,22 +8,16 @@ This example demonstrates WebSpark's schema validation capabilities:
 
 from webspark.core import View, WebSpark, path
 from webspark.http import Context
-from webspark.schema import (
-    BooleanField,
-    EmailField,
-    IntegerField,
-    Schema,
-    StringField,
-)
 from webspark.utils import HTTPException
+from webspark.validation import Schema, fields
 
 
 # Define a schema for user data
 class UserSchema(Schema):
-    name = StringField(required=True, max_length=100)
-    age = IntegerField(min_value=1, max_value=120)
-    email = EmailField(required=True)
-    is_active = BooleanField(default=True)
+    name = fields.StringField(required=True, max_length=100)
+    age = fields.IntegerField(min_value=1, max_value=120)
+    email = fields.EmailField(required=True)
+    is_active = fields.BooleanField(default=True)
 
 
 # In-memory storage
@@ -34,8 +28,6 @@ next_id = 1
 class UserView(View):
     """Handle user operations with schema validation."""
 
-    body_schema = UserSchema  # Attach the schema for automatic validation
-
     def handle_get(self, ctx: Context):
         """Return all users."""
         ctx.json({"users": users})
@@ -44,9 +36,11 @@ class UserView(View):
         """Create a new user with validation."""
         global next_id
 
-        # When body_schema is defined, WebSpark automatically validates the request body
-        # and makes the validated data available through self.validated_body()
-        validated_data, errors = self.validated_body(raise_=True)
+        schema_instance = UserSchema(data=ctx.body)
+        if not schema_instance.is_valid():
+            raise HTTPException(schema_instance.errors, status_code=400)
+
+        validated_data = schema_instance.validated_data
 
         # Create new user with validated data
         new_user = {
@@ -89,6 +83,6 @@ app.add_paths(
 
 if __name__ == "__main__":
     # For development purposes, you can run this with a WSGI server like:
-    # gunicorn examples.schema_example:app
+    # gunicorn examples.validation_example:app
     print("Schema Validation Example")
-    print("Run with: gunicorn examples.schema_example:app")
+    print("Run with: gunicorn examples.validation_example:app")

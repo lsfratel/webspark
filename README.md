@@ -160,7 +160,7 @@ Ensure your incoming data is valid by defining schemas. If validation fails, Web
 Define a schema by inheriting from `Schema` and adding fields.
 
 ```python
-from webspark.schema import Schema, StringField, IntegerField, EmailField
+from webspark.validation import Schema, StringField, IntegerField, EmailField
 
 class UserSchema(Schema):
     name = StringField(required=True, max_length=100)
@@ -376,7 +376,7 @@ You can apply the SchemaPlugin using the `@apply` decorator from `webspark.utils
 from webspark.contrib.plugins import SchemaPlugin
 from webspark.core import View
 from webspark.http import Context
-from webspark.schema import Schema, StringField, IntegerField
+from webspark.validation import Schema, StringField, IntegerField
 from webspark.utils import apply
 
 # Define a schema for validation

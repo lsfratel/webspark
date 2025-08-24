@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
 
-    from .schema import Schema
+    from .validation import Schema
 
 from ..constants import UNDEFINED
 from ..utils import HTTPException

@@ -11,7 +11,6 @@ from contextlib import contextmanager
 
 from webspark.core import View, WebSpark, path
 from webspark.http import Context
-from webspark.schema import IntegerField, Schema, StringField
 from webspark.utils import HTTPException
 
 # Database configuration
@@ -43,19 +42,6 @@ def get_db_connection():
         yield conn
     finally:
         conn.close()
-
-
-# Schema for product creation
-class ProductSchema(Schema):
-    name = StringField(required=True, max_length=100)
-    description = StringField(max_length=500)
-    price = IntegerField(min_value=0)
-
-
-class ProductUpdateSchema(Schema):
-    name = StringField(max_length=100)
-    description = StringField(max_length=500)
-    price = IntegerField(min_value=0)
 
 
 class ProductListView(View):

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
     from ...core.views import View
     from ...http.context import Context
-    from ...schema.schema import Schema
+    from ...validation.schema import Schema
 
 from ...core.plugin import Plugin
 from ...utils.exceptions import HTTPException

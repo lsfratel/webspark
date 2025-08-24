@@ -9,23 +9,17 @@ This example demonstrates WebSpark's schema validation capabilities:
 from webspark.contrib.plugins.schema import SchemaPlugin
 from webspark.core import View, WebSpark, path
 from webspark.http import Context
-from webspark.schema import (
-    BooleanField,
-    EmailField,
-    IntegerField,
-    Schema,
-    StringField,
-)
 from webspark.utils import HTTPException
 from webspark.utils.decorators import apply
+from webspark.validation import Schema, fields
 
 
 # Define a schema for user data
 class UserSchema(Schema):
-    name = StringField(required=True, max_length=100)
-    email = EmailField(required=True)
-    age = IntegerField(min_value=1, max_value=120)
-    is_active = BooleanField(default=True)
+    name = fields.StringField(required=True, max_length=100)
+    email = fields.EmailField(required=True)
+    age = fields.IntegerField(min_value=1, max_value=120)
+    is_active = fields.BooleanField(default=True)
 
 
 # In-memory storage
@@ -36,22 +30,16 @@ next_id = 1
 class UserView(View):
     """Handle user operations with schema validation."""
 
-    body_schema = UserSchema  # Attach the schema for automatic validation
-
     def handle_get(self, ctx: Context):
         """Return all users."""
         ctx.json({"users": users})
 
     @apply(
-        SchemaPlugin(UserSchema, prop="body", kw="body"),
+        SchemaPlugin(UserSchema, prop="body"),
     )
     def handle_post(self, ctx: Context, body: dict):
         """Create a new user with validation."""
         global next_id
-
-        # When body_schema is defined, WebSpark automatically validates the request body
-        # and makes the validated data available through self.validated_body()
-        # validated_data, errors = self.validated_body(raise_=True)
 
         # Create new user with validated data
         new_user = {
@@ -95,5 +83,5 @@ app.add_paths(
 if __name__ == "__main__":
     # For development purposes, you can run this with a WSGI server like:
     # gunicorn examples.schema_example:app
-    print("Schema Validation Example")
+    print("Schema Plugin Example")
     print("Run with: gunicorn examples.schema_plugin_example:app")
