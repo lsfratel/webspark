@@ -1,7 +1,7 @@
 """
 Schema Validation Example
 This example demonstrates WebSpark's schema validation capabilities:
-- Using ObjectSchema for request body validation
+- Using Schema for request body validation
 - Field validation with different data types
 - Automatic error responses for invalid data
 """
@@ -12,14 +12,14 @@ from webspark.schema import (
     BooleanField,
     EmailField,
     IntegerField,
-    ObjectSchema,
+    Schema,
     StringField,
 )
 from webspark.utils import HTTPException
 
 
 # Define a schema for user data
-class UserSchema(ObjectSchema):
+class UserSchema(Schema):
     name = StringField(required=True, max_length=100)
     age = IntegerField(min_value=1, max_value=120)
     email = EmailField(required=True)

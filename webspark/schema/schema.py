@@ -10,11 +10,11 @@ from ..utils import HTTPException
 from .fields import BaseField
 
 
-class ObjectSchemaMeta(type):
-    """Metaclass for ObjectSchema that handles field declaration."""
+class SchemaMeta(type):
+    """Metaclass for Schema that handles field declaration."""
 
     def __new__(cls, name, bases, attrs):
-        """Create a new ObjectSchema class with declared fields.
+        """Create a new Schema class with declared fields.
 
         Args:
             name: The name of the class being created.
@@ -38,14 +38,14 @@ class ObjectSchemaMeta(type):
         return super().__new__(cls, name, bases, attrs)
 
 
-class ObjectSchema(metaclass=ObjectSchemaMeta):
+class Schema(metaclass=SchemaMeta):
     """Base class for defining data schemas.
 
-    Schemas are used to validate and serialize data. Fields are declared as class attributes,
+    Schemas are used to validate data. Fields are declared as class attributes,
     and the metaclass handles binding field names.
 
     Example:
-        class UserSchema(ObjectSchema):
+        class UserSchema(Schema):
             name = StringField(required=True, max_length=100)
             age = IntegerField(min_value=0, max_value=150)
 
@@ -53,36 +53,24 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
         schema = UserSchema(data={"name": "John", "age": 30})
         if schema.is_valid():
             validated_data = schema.validated_data
-
-        # Serialization
-        user = User(name="John", age=30)
-        serialized = UserSchema.serialize(user)
     """
 
     def __init__(
         self,
         data: dict = None,
-        instance: Any = None,
         context: dict = None,
     ):
-        """Initialize an ObjectSchema.
+        """Initialize a Schema.
 
         Args:
             data: The data to validate.
-            instance: An instance to serialize.
-            context: Additional context for validation/serialization.
+            context: Additional context for validation.
         """
         self.initial_data = data or {}
-        self.instance = instance
         self.context = context or {}
         self._validated_data = None
         self._errors = {}
-        self.fields = self._declared_fields
-
-    @property
-    def serialized_data(self) -> dict:
-        """Get the serialized representation of the instance."""
-        return self.to_representation()
+        self.fields: dict[str, BaseField] = self._declared_fields
 
     @property
     def validated_data(self) -> dict:
@@ -105,22 +93,6 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
         """Get validation errors."""
         return self._errors
 
-    @classmethod
-    def serialize(cls, obj: Any, many=False, **initkwargs):
-        """Serialize an object or list of objects.
-
-        Args:
-            obj: The object or list of objects to serialize.
-            many: Whether to serialize multiple objects.
-            **initkwargs: Additional keyword arguments for schema initialization.
-
-        Returns:
-            The serialized data.
-        """
-        if many:
-            return [cls(instance=o, **initkwargs).serialized_data for o in obj]
-        return cls(instance=obj, **initkwargs).serialized_data
-
     def validate(self, data: Any):
         """Override this method to add custom validation.
 
@@ -141,11 +113,14 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
         if self.initial_data is None:
             self._errors = {"non_field_errors": ["No data provided."]}
             return False
+
         validated_data = {}
         errors = {}
 
         try:
-            initial_data = self.validate(self.initial_data)
+            initial_data = self.validate(
+                self.initial_data if self.initial_data is not None else {}
+            )
         except HTTPException as e:
             self._errors = e.details
             self._validated_data = validated_data
@@ -173,21 +148,3 @@ class ObjectSchema(metaclass=ObjectSchemaMeta):
 
         self._validated_data = validated_data
         return True
-
-    def to_representation(self, obj: Any = None) -> dict:
-        """Convert an object to its serialized representation.
-
-        Args:
-            obj: The object to serialize. If None, uses self.instance.
-
-        Returns:
-            The serialized representation.
-        """
-        obj = obj or self.instance
-        if obj is None:
-            return {}
-
-        return {
-            field_name: field.to_representation(getattr(obj, field.name, None), obj)
-            for field_name, field in self.fields.items()
-        }

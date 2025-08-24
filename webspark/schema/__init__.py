@@ -14,10 +14,10 @@ from .fields import (
     URLField,
     UUIDField,
 )
-from .object_schema import ObjectSchema
+from .schema import Schema
 
 __all__ = [
-    "ObjectSchema",
+    "Schema",
     "IntegerField",
     "FloatField",
     "StringField",

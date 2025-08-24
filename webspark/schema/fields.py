@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
 
-    from .object_schema import ObjectSchema
+    from .schema import Schema
 
 from ..constants import UNDEFINED
 from ..utils import HTTPException
@@ -62,7 +62,7 @@ class BaseField:
         self.validators = validators or []
         self.name: str = None
         self.nullable = nullable
-        self.schema: ObjectSchema = None
+        self.schema: Schema = None
 
         self.error_messages = self.get_default_error_messages()
         if error_messages:
@@ -75,7 +75,7 @@ class BaseField:
         msg = self.error_messages.get(key, "Invalid value.").format(**kwargs)
         raise HTTPException({self.name: [msg]}, status_code=400)
 
-    def validate(self, value: Any, data: Any) -> Any:
+    def validate(self, value: Any, data: Any = None) -> Any:
         if value is UNDEFINED:
             if self.required:
                 self.fail("required")
@@ -93,7 +93,7 @@ class BaseField:
 
         return value
 
-    def to_representation(self, value: Any, obj: Any) -> Any:
+    def to_representation(self, value: Any, obj: Any = None) -> Any:
         return value
 
     def bind(self, field_name: str):
@@ -225,7 +225,7 @@ class ListField(BaseField):
             self.fail("invalid")
         return value
 
-    def validate(self, value: Any, data: Any) -> list:
+    def validate(self, value: Any, data: Any = None) -> list:
         value = super().validate(value, data)
 
         if self.min_items is not None and len(value) < self.min_items:
@@ -247,7 +247,7 @@ class ListField(BaseField):
             return validated
         return value
 
-    def to_representation(self, value: list, obj: Any) -> list:
+    def to_representation(self, value: list, obj: Any = None) -> list:
         if self.child and value:
             return [self.child.to_representation(item, obj) for item in value]
         return value
@@ -262,7 +262,7 @@ class SerializerField(BaseField):
 
     def __init__(
         self,
-        serializer_class: type[ObjectSchema],
+        serializer_class: type[Schema],
         many: bool = False,
         initkwargs: dict = None,
         **kwargs,
@@ -272,7 +272,7 @@ class SerializerField(BaseField):
         self.many = many
         self.initkwargs = initkwargs or {}
 
-    def validate(self, value: Any, data: Any):
+    def validate(self, value: Any, data: Any = None):
         if value is UNDEFINED:
             return super().validate(value, data)
 
@@ -302,7 +302,7 @@ class SerializerField(BaseField):
             raise HTTPException({self.name: serializer.errors}, status_code=400)
         return serializer.validated_data
 
-    def to_representation(self, value: Any, obj: Any):
+    def to_representation(self, value: Any, obj: Any = None):
         if value is None:
             return [] if self.many else None
         if self.many and not isinstance(value, list):
@@ -330,7 +330,7 @@ class DateTimeField(BaseField):
         except (ValueError, TypeError):
             self.fail("invalid")
 
-    def validate(self, value: Any, data: Any) -> datetime:
+    def validate(self, value: Any, data: Any = None) -> datetime:
         if self.auto_now or (self.auto_now_add and value is UNDEFINED):
             return datetime.now(tz=timezone.utc)
 
@@ -418,7 +418,7 @@ class DecimalField(BaseField):
         except (InvalidOperation, TypeError):
             self.fail("invalid")
 
-    def validate(self, value: Any, data: Any) -> Decimal:
+    def validate(self, value: Any, data: Any = None) -> Decimal:
         value = super().validate(value, data)
         if value is None:
             return value
@@ -480,12 +480,12 @@ class MethodField(BaseField):
             )
         return method
 
-    def validate(self, value: Any, data: Any) -> Any:
+    def validate(self, value: Any, data: Any = None) -> Any:
         method = self.get_method()
         computed = method(data)
         return super().validate(computed, data)
 
-    def to_representation(self, value: Any, obj: Any) -> Any:
+    def to_representation(self, value: Any, obj: Any = None) -> Any:
         method = self.get_method()
         computed = method(obj)
         return super().to_representation(computed, obj)

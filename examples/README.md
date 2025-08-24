@@ -11,7 +11,7 @@ This directory contains several self-contained examples demonstrating different 
    - Simple in-memory data storage
 
 2. **[schema_example.py](schema_example.py)** - Data validation with schemas
-   - Using ObjectSchema for request body validation
+   - Using Schema for request body validation
    - Field validation with different data types
    - Automatic error responses for invalid data
 

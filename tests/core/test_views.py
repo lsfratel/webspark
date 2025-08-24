@@ -46,7 +46,7 @@ def test_view_default_actions():
     assert len(DEFAULT_ACTIONS) == 9
 
 
-def test_view_ctx_property():
+def test_view_property():
     view = View()
     ctx = MockContext()
 

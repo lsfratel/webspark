@@ -6,12 +6,12 @@ from webspark.contrib.plugins.schema import SchemaPlugin
 from webspark.core.views import View
 from webspark.http.context import Context
 from webspark.schema.fields import IntegerField, StringField
-from webspark.schema.object_schema import ObjectSchema
+from webspark.schema.schema import Schema
 from webspark.utils import HTTPException
 
 
 # Sample schema for testing
-class UserSchema(ObjectSchema):
+class UserSchema(Schema):
     name = StringField(required=True, max_length=100)
     age = IntegerField(min_value=0, max_value=150)
 
@@ -20,7 +20,7 @@ class UserSchema(ObjectSchema):
 def schema_plugin():
     return SchemaPlugin(
         schema=UserSchema,
-        ctx_prop="body",
+        prop="body",
     )
 
 
@@ -42,23 +42,23 @@ def test_schema_plugin_initialization():
     # Basic initialization
     plugin = SchemaPlugin(
         schema=UserSchema,
-        ctx_prop="body",
+        prop="body",
     )
     assert plugin.schema == UserSchema
-    assert plugin.ctx_prop == "body"
-    assert plugin.ctx_args == ()
+    assert plugin.prop == "body"
+    assert plugin.args == ()
     assert plugin.kw is None
 
     # Initialization with all parameters
     plugin = SchemaPlugin(
         schema=UserSchema,
-        ctx_prop="query_params",
-        ctx_args=("arg1", "arg2"),
+        prop="query_params",
+        args=("arg1", "arg2"),
         kw="validated_data",
     )
     assert plugin.schema == UserSchema
-    assert plugin.ctx_prop == "query_params"
-    assert plugin.ctx_args == ("arg1", "arg2")
+    assert plugin.prop == "query_params"
+    assert plugin.args == ("arg1", "arg2")
     assert plugin.kw == "validated_data"
 
 
@@ -84,16 +84,16 @@ def test_schema_plugin_apply_success(schema_plugin, mock_view):
     assert result == "success"
 
 
-def test_schema_plugin_apply_with_callable_ctx_prop(schema_plugin, mock_view):
-    """Test validation when ctx_prop is a callable."""
+def test_schema_plugin_apply_with_callable_prop(schema_plugin, mock_view):
+    """Test validation when prop is a callable."""
 
     def mock_handler(view, data=None):
         assert data == {"name": "Jane", "age": 25}
         return "success"
 
-    # Create a plugin that uses a callable ctx_prop
+    # Create a plugin that uses a callable prop
     callable_plugin = SchemaPlugin(
-        schema=UserSchema, ctx_prop="get_data", ctx_args=("param1", "param2"), kw="data"
+        schema=UserSchema, prop="get_data", args=("param1", "param2"), kw="data"
     )
 
     # Mock the context with a callable that returns data
@@ -146,7 +146,7 @@ def test_schema_plugin_apply_with_custom_kw(schema_plugin, mock_view):
         return "success"
 
     # Create a plugin with a custom kw
-    custom_plugin = SchemaPlugin(schema=UserSchema, ctx_prop="body", kw="custom_data")
+    custom_plugin = SchemaPlugin(schema=UserSchema, prop="body", kw="custom_data")
 
     # Mock the context with valid data
     mock_context = Mock()

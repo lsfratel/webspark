@@ -14,6 +14,7 @@ WebSpark provides a simple yet powerful architecture for handling HTTP requests 
 -   **Class-Based Views**: Intuitive request handling with automatic dispatching based on HTTP methods.
 -   **Data Validation**: A declarative schema system for validating request bodies and query parameters.
 -   **Middleware via Plugins**: A simple plugin system for request/response processing and cross-cutting concerns.
+-   **Method-Level Plugin Application**: Apply plugins directly to view methods using the `apply` helper.
 -   **Modern HTTP Toolkit**: Clean abstractions for Requests, Responses, and Cookies.
 -   **Optimized JSON Handling**: Automatically uses the fastest available JSON library (`orjson`, `ujson`, or `json`).
 -   **Built-in File Uploads**: Seamlessly handle multipart form data and file uploads.
@@ -156,12 +157,12 @@ class UserView(View):
 
 Ensure your incoming data is valid by defining schemas. If validation fails, WebSpark automatically returns a `400 Bad Request` response.
 
-Define a schema by inheriting from `ObjectSchema` and adding fields.
+Define a schema by inheriting from `Schema` and adding fields.
 
 ```python
-from webspark.schema import ObjectSchema, StringField, IntegerField, EmailField
+from webspark.schema import Schema, StringField, IntegerField, EmailField
 
-class UserSchema(ObjectSchema):
+class UserSchema(Schema):
     name = StringField(required=True, max_length=100)
     age = IntegerField(min_value=18)
     email = EmailField(required=True)
@@ -365,9 +366,9 @@ app.add_paths([
 
 #### Schema Validation Plugin
 
-WebSpark provides a `SchemaPlugin` for validating data from the request context using an `ObjectSchema`. This plugin can validate any data accessible through the context object, such as the request body, query parameters, or path parameters.
+WebSpark provides a `SchemaPlugin` for validating data from the request context using an `Schema`. This plugin can validate any data accessible through the context object, such as the request body, query parameters, or path parameters.
 
-The plugin reads a value from the view context using `ctx_prop`. If that value is callable, it is invoked with `ctx_args` to obtain the data. The data is then validated using the provided `schema`. If validation succeeds, the validated data is injected into the handler's keyword arguments. If validation fails, an HTTPException with status code 400 is raised.
+The plugin reads a value from the view context using `prop`. If that value is callable, it is invoked with `args` to obtain the data. The data is then validated using the provided `schema`. If validation succeeds, the validated data is injected into the handler's keyword arguments. If validation fails, an HTTPException with status code 400 is raised.
 
 You can apply the SchemaPlugin using the `@apply` decorator from `webspark.utils.decorators`:
 
@@ -375,17 +376,17 @@ You can apply the SchemaPlugin using the `@apply` decorator from `webspark.utils
 from webspark.contrib.plugins import SchemaPlugin
 from webspark.core import View
 from webspark.http import Context
-from webspark.schema import ObjectSchema, StringField, IntegerField
+from webspark.schema import Schema, StringField, IntegerField
 from webspark.utils import apply
 
 # Define a schema for validation
-class UserSchema(ObjectSchema):
+class UserSchema(Schema):
     name = StringField(required=True, max_length=100)
     age = IntegerField(min_value=1, max_value=120)
 
 class UserView(View):
     @apply(
-        SchemaPlugin(UserSchema, ctx_prop="body", kw="validated_body"),
+        SchemaPlugin(UserSchema, prop="body", kw="validated_body"),
     )
     def handle_post(self, ctx: Context, validated_body: dict):
         # The validated_body parameter contains the validated data
@@ -393,7 +394,7 @@ class UserView(View):
 ```
 
 In this example:
-- `ctx_prop="body"` tells the plugin to read data from `ctx.body`
+- `prop="body"` tells the plugin to read data from `ctx.body`
 - `kw="validated_body"` specifies that the validated data should be passed to the handler as the `validated_body` keyword argument
 - If validation fails, an HTTP 400 error is automatically returned with details about the validation errors
 
@@ -402,9 +403,43 @@ You can also apply the plugin to a specific path when registering routes:
 ```python
 app.add_paths([
     path("/users", view=UserView.as_view(), plugins=[
-        SchemaPlugin(UserSchema, ctx_prop="body", kw="validated_body")
+        SchemaPlugin(UserSchema, prop="body", kw="validated_body")
     ])
 ])
+```
+
+#### The `apply` Helper
+
+WebSpark provides an `apply` helper function in `webspark.utils.decorators` that makes it easy to apply plugins directly to view methods. This is particularly useful for applying plugins to specific handlers rather than entire views or routes.
+
+The `apply` function takes one or more plugin instances and returns a decorator that wraps the target function with those plugins:
+
+```python
+from webspark.utils import apply
+from webspark.contrib.plugins import SchemaPlugin, CORSPlugin
+
+# Apply a single plugin
+@apply(SchemaPlugin(UserSchema, prop="body"))
+def handle_post(self, ctx: Context, body: dict):
+    # Handler logic here
+    pass
+
+# Apply multiple plugins
+@apply(
+    CORSPlugin(allow_origins=["https://mydomain.com"]),
+    SchemaPlugin(UserSchema, prop="body")
+)
+def handle_post(self, ctx: Context, body: dict):
+    # Handler logic here
+    pass
+```
+
+The `apply` helper is especially useful when you want to:
+- Apply validation to specific handlers rather than entire views
+- Combine multiple plugins on a single method
+- Keep plugin configuration close to the code it affects
+
+When using `apply`, the plugins are applied in the order they are passed to the function, with the first plugin wrapping the original function, the second plugin wrapping the first, and so on.
 ```
 
 ### 7. Error Handling
@@ -580,7 +615,7 @@ webspark/
   - `CORSPlugin` - Handles Cross-Origin Resource Sharing.
   - `AllowedHostsPlugin` - Validates incoming Host headers.
   - `TokenAuthPlugin` - Token-based authentication middleware for securing endpoints.
-  - `SchemaPlugin` - Validates data from the request context using ObjectSchema.
+  - `SchemaPlugin` - Validates data from the request context using Schema.
 
 - **http/** - HTTP abstractions:
   - `Context` - Request/response context object
@@ -588,13 +623,14 @@ webspark/
   - `multipart` - File upload handling
 
 - **schema/** - Data validation:
-  - `ObjectSchema` - Base class for validation schemas
+  - `Schema` - Base class for validation schemas
   - `fields` - Validation field types
 
 - **utils/** - Utility functions:
   - `HTTPException` - Standardized error handling
   - `env` - Environment variable helper
   - `json` - Optimized JSON handling
+  - `decorators` - Helper decorators including `apply` and `cached_property`
 
 ## Contributing
 
