@@ -126,3 +126,83 @@ def test_auth_plugin_custom_scheme(mock_handler, mock_context, user_record):
 
     assert exc_info.value.status_code == 401
     mock_context.set_header.assert_called_with("WWW-Authenticate", plugin.scheme)
+
+
+def test_auth_plugin_cookie_success(mock_handler, mock_context, user_record):
+    """
+    Test that the plugin successfully authenticates using a cookie.
+    """
+    token_loader = Mock(return_value=user_record)
+    plugin = TokenAuthPlugin(token_loader=token_loader, cookie_name="auth_token")
+
+    mock_context.cookies = {"auth_token": "valid_cookie_token"}
+    mock_context.state = {}
+
+    wrapped_handler = plugin.apply(mock_handler)
+    wrapped_handler(mock_context)
+
+    token_loader.assert_called_once_with("valid_cookie_token")
+    assert mock_context.state["user"] == user_record
+    mock_handler.assert_called_once_with(mock_context)
+
+
+def test_auth_plugin_cookie_invalid_token(mock_handler, mock_context):
+    """
+    Test that the plugin raises 401 if the cookie token is invalid.
+    """
+    token_loader = Mock(return_value=None)
+    plugin = TokenAuthPlugin(token_loader=token_loader, cookie_name="auth_token")
+
+    mock_context.cookie = {"auth_token": "invalid_cookie_token"}
+
+    wrapped_handler = plugin.apply(mock_handler)
+
+    with pytest.raises(HTTPException) as exc_info:
+        wrapped_handler(mock_context)
+
+    assert exc_info.value.status_code == 401
+    assert "Invalid token" in exc_info.value.details
+    mock_context.set_header.assert_called_once_with("WWW-Authenticate", plugin.scheme)
+    mock_handler.assert_not_called()
+
+
+def test_auth_plugin_cookie_fallback_to_header(mock_handler, mock_context, user_record):
+    """
+    Test that if cookie is configured but not present, the plugin falls back to header.
+    """
+    token_loader = Mock(return_value=user_record)
+    plugin = TokenAuthPlugin(token_loader=token_loader, cookie_name="auth_token")
+
+    # no cookie → should fallback to header
+    mock_context.cookies = {}
+    mock_context.headers = {"authorization": "Token header_token"}
+    mock_context.state = {}
+
+    wrapped_handler = plugin.apply(mock_handler)
+    wrapped_handler(mock_context)
+
+    token_loader.assert_called_once_with("header_token")
+    assert mock_context.state["user"] == user_record
+    mock_handler.assert_called_once_with(mock_context)
+
+
+def test_auth_plugin_cookie_and_header_missing(mock_handler, mock_context):
+    """
+    Test that if cookie_name is configured but neither cookie nor header is present,
+    plugin raises 401.
+    """
+    token_loader = Mock()
+    plugin = TokenAuthPlugin(token_loader=token_loader, cookie_name="auth_token")
+
+    mock_context.cookies = {}
+    mock_context.headers = {}
+
+    wrapped_handler = plugin.apply(mock_handler)
+
+    with pytest.raises(HTTPException) as exc_info:
+        wrapped_handler(mock_context)
+
+    assert exc_info.value.status_code == 401
+    assert "Authentication credentials were not provided" in exc_info.value.details
+    mock_context.set_header.assert_called_once_with("WWW-Authenticate", plugin.scheme)
+    mock_handler.assert_not_called()
