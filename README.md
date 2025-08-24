@@ -328,20 +328,27 @@ app = WebSpark(plugins=[allowed_hosts_plugin])
 
 #### TokenAuth Plugin
 
-WebSpark provides a `TokenAuthPlugin` for implementing token-based authentication, typically used for APIs. This plugin checks for an `Authorization` header and validates the token using a provided function.
+WebSpark provides a `TokenAuthPlugin` for implementing token-based authentication, typically used for APIs.
+This plugin can check for a token either in the **Authorization header** or in a **cookie**, and then validates it using a provided function.
 
 ```python
 from webspark.contrib.plugins import TokenAuthPlugin
 
 # A simple function to validate a token and return a user object.
-# In a real application, this would check a database.
+# In a real application, this would check a database or cache.
 def get_user_from_token(token: str):
     if token == "secret-token":
         return {"username": "admin"}
     return None
 
-# Create a token auth plugin
+# Create a token auth plugin (header-based by default)
 token_auth_plugin = TokenAuthPlugin(token_loader=get_user_from_token)
+
+# Or configure it to read from a cookie instead:
+cookie_auth_plugin = TokenAuthPlugin(
+    token_loader=get_user_from_token,
+    cookie_name="auth_token",   # will look for Cookie: auth_token=<token>
+)
 
 # Apply the plugin to a protected view
 app.add_paths([
@@ -350,8 +357,9 @@ app.add_paths([
 ```
 
 -   **Behavior**:
-    -   The plugin expects an `Authorization` header in the format `Token <your-token>`. The scheme (`Token`) can be customized.
-    -   If the header is missing or invalid, it returns a `401 Unauthorized` response with a `WWW-Authenticate` header.
+    -   By default, the plugin expects an **Authorization** header in the format `Authorization: Token <your-token>`, the scheme (`Token`) can be customized when instantiating the plugin.
+    -   If `cookie_name` is provided, the plugin will first check for a cookie with that name `Cookie: auth_token=<your-token>`, if not found, it falls back to the Authorization header.
+    -   If no valid token is found, the plugin returns a `401 Unauthorized` response with a `WWW-Authenticate` header.
     -   If the token is successfully validated by the `token_loader` function, the returned user object is attached to the context as `ctx.state["user"]` and the request proceeds to the view.
 
 ### 7. Error Handling
@@ -523,9 +531,10 @@ webspark/
   - `path` - Routing helper function
   - `Plugin` - Base class for middleware
 
-- **contrib/** - Optional plugins:
+- **contrib/plugins/** - Optional plugins:
   - `CORSPlugin` - Handles Cross-Origin Resource Sharing.
   - `AllowedHostsPlugin` - Validates incoming Host headers.
+  - `TokenAuthPlugin` - Token-based authentication middleware for securing endpoints.
 
 - **http/** - HTTP abstractions:
   - `Context` - Request/response context object
